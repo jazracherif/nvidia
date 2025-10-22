@@ -4,3 +4,9 @@
 *.ptx
 *.cubin
 *.fatbin
+
+
+*-checkpoint.ipynb
+*_linux.run
+
+myenv/
