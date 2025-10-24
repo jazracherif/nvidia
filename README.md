@@ -22,3 +22,10 @@ Install python packages:
 ```
 pip install -r requirements_full.txt
 ```
+
+## Image generation
+
+```bash
+cd image_generation
+python3 diffusion.py
+```

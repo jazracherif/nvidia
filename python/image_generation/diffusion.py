@@ -1,7 +1,7 @@
 """
     Credit: Anthony Assi
 """
-
+import os
 import torch
 from diffusers import StableDiffusionPipeline, DPMSolverMultistepScheduler
 import datetime
@@ -58,8 +58,10 @@ image = pipe(
 # --- Save the Output ---
 # Create a unique filename using the current timestamp.
 timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-output_filename = f"img/image_{timestamp}.png"
 
+IMG_DIR = "./img"
+os.makedirs(IMG_DIR, exist_ok=True)
+output_filename = f"{IMG_DIR}/image_{timestamp}.png"
 # Save the generated image to a file.
 image.save(output_filename)
 
