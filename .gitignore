@@ -10,3 +10,7 @@
 *_linux.run
 
 myenv/
+
+.venv
+
+img/

@@ -1,0 +1,16 @@
+jupyterlab==4.4.7
+ipywidgets==8.1.7
+
+jupyterlab-nvidia-nsight==0.7.0
+jupyterlab_nvdashboard==0.13.0
+
+# DL
+--extra-index-url https://download.pytorch.org/whl/cu130
+torch==2.9.0+cu13 
+torchvision==0.24.0
+accelerate==1.10.1
+transformers==4.56.1
+datasets==4.1.0
+diffusers==0.35.1
+peft==0.17.1
+trl==0.19.1
