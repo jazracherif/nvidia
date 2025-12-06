@@ -121,12 +121,10 @@ sudo apt install -y build-essential devscripts debhelper fakeroot git libopenmpi
 #### 2\. Build NCCL
 
 ``` bash
-mkdir -p ~/SourceCodeCompiled
-cd ~/SourceCodeCompiled
-git clone [https://github.com/NVIDIA/nccl.git](https://github.com/NVIDIA/nccl.git)
-cd nccl
-make -j src.build
-
+sudo apt-get update && sudo apt-get install -y libopenmpi-dev
+git clone -b v2.28.3-1 https://github.com/NVIDIA/nccl.git ~/nccl/
+cd ~/nccl/
+make -j src.build NVCC_GENCODE="-gencode=arch=compute_121,code=sm_121"
 ```
 
 #### 3\. Configure Environment Variables (Permanent)
@@ -139,7 +137,7 @@ cat << 'EOF' >> ~/.bashrc
 # --- DGX Cluster Config ---
 export CUDA_HOME="/usr/local/cuda"
 export MPI_HOME="/usr/lib/aarch64-linux-gnu/openmpi"
-export NCCL_HOME="$HOME/SourceCodeCompiled/nccl/build" 
+export NCCL_HOME="$HOME/nccl/build" 
 export LD_LIBRARY_PATH="$NCCL_HOME/lib:$CUDA_HOME/lib64:$MPI_HOME/lib:$LD_LIBRARY_PATH"
 # --------------------------
 EOF
@@ -156,13 +154,10 @@ source ~/.bashrc
 This tool allows us to verify the 200GbE connection speed once I plug in.
 
 ``` bash
-cd ~/SourceCodeCompiled
-git clone [https://github.com/NVIDIA/nccl-tests.git](https://github.com/NVIDIA/nccl-tests.git)
-cd nccl-tests
-
-# Compile
-make MPI=1 MPI_HOME=$MPI_HOME CUDA_HOME=$CUDA_HOME NCCL_HOME=$NCCL_HOME
-
+# Clone and build NCCL tests
+git clone https://github.com/NVIDIA/nccl-tests.git ~/nccl-tests/
+cd ~/nccl-tests/
+make MPI=1
 ```
 
 Verify it works:
@@ -172,6 +167,45 @@ Run this quick command. It should output a table of results (even if they are lo
 ``` bash
 ./build/all_reduce_perf -b 8 -e 128M -f 2 -g 1
 
+# nccl-tests version 2.17.6 nccl-headers=22803 nccl-library=22803
+# Collective test starting: all_reduce_perf
+# nThread 1 nGpus 1 minBytes 8 maxBytes 134217728 step: 2(factor) warmup iters: 1 iters: 20 agg iters: 1 validation: 1 graph: 0
+#
+# Using devices
+#  Rank  0 Group  0 Pid  34217 on spark-d5e1 device  0 [000f:01:00] NVIDIA GB10
+#
+#                                                              out-of-place                       in-place          
+#       size         count      type   redop    root     time   algbw   busbw  #wrong     time   algbw   busbw  #wrong 
+#        (B)    (elements)                               (us)  (GB/s)  (GB/s)             (us)  (GB/s)  (GB/s)         
+           8             2     float     sum      -1     2.63    0.00    0.00       0     0.13    0.06    0.00       0
+          16             4     float     sum      -1     2.63    0.01    0.00       0     0.07    0.22    0.00       0
+          32             8     float     sum      -1     2.65    0.01    0.00       0     0.08    0.42    0.00       0
+          64            16     float     sum      -1     2.60    0.02    0.00       0     0.09    0.68    0.00       0
+         128            32     float     sum      -1     2.70    0.05    0.00       0     0.80    0.16    0.00       0
+         256            64     float     sum      -1     3.41    0.07    0.00       0     0.62    0.41    0.00       0
+         512           128     float     sum      -1     3.43    0.15    0.00       0     0.62    0.83    0.00       0
+        1024           256     float     sum      -1     3.29    0.31    0.00       0     0.62    1.65    0.00       0
+        2048           512     float     sum      -1     3.35    0.61    0.00       0     1.07    1.92    0.00       0
+        4096          1024     float     sum      -1     3.34    1.23    0.00       0     0.63    6.49    0.00       0
+        8192          2048     float     sum      -1     3.24    2.53    0.00       0     0.69   11.80    0.00       0
+       16384          4096     float     sum      -1     3.32    4.93    0.00       0     0.64   25.73    0.00       0
+       32768          8192     float     sum      -1     3.15   10.41    0.00       0     0.13  246.75    0.00       0
+       65536         16384     float     sum      -1     3.81   17.21    0.00       0     0.15  428.90    0.00       0
+      131072         32768     float     sum      -1     3.76   34.87    0.00       0     0.15  890.43    0.00       0
+      262144         65536     float     sum      -1     3.60   72.78    0.00       0     0.15  1733.8    0.00       0
+      524288        131072     float     sum      -1     6.86   76.38    0.00       0     1.13  464.79    0.00       0
+     1048576        262144     float     sum      -1     9.34  112.30    0.00       0     0.65  1608.2    0.00       0
+     2097152        524288     float     sum      -1    19.42  108.00    0.00       0     0.62  3408.9    0.00       0
+     4194304       1048576     float     sum      -1    36.44  115.10    0.00       0     1.31  3210.6    0.00       0
+     8388608       2097152     float     sum      -1    68.81  121.91    0.00       0     1.12  7473.8    0.00       0
+    16777216       4194304     float     sum      -1   139.91  119.92    0.00       0     0.62   27060    0.00       0
+    33554432       8388608     float     sum      -1   275.87  121.63    0.00       0     0.60   56149    0.00       0
+    67108864      16777216     float     sum      -1   547.55  122.56    0.00       0     0.63  106185    0.00       0
+   134217728      33554432     float     sum      -1  1122.35  119.59    0.00       0     0.14  926918    0.00       0
+# Out of bounds values : 0 OK
+# Avg bus bandwidth    : 0 
+#
+# Collective test concluded: all_reduce_perf
 ```
 
 ## Section 3: "Game Day" Execution Guide
