@@ -56,48 +56,54 @@ hf download neuralmagic/Meta-Llama-3.1-405B-Instruct-quantized.w4a16 \
 
 #### 2\. Pull the Docker Images (32 GB)
 
-Add your user to the docker group if not done
+Add your user to the docker group if not done. 
 
-``` bash
-> sudo usermod -aG docker $USER
+Check whether user is allowed to run docker, if yes, skip to pulling the images below
 
+```bash
+> docker ps
+permission denied while trying to connect to the Docker daemon socket at unix:///var/run/docker.sock:
 ```
 
-Login to new bash to activate group membership
+Update permissions for docker:
+``` bash
+> sudo usermod -aG docker $USER
+```
+
+Login to new bash to activate group membership and confirm the docker group was added
 
 ``` bash
 > bash  
-> groups  // checks current group, verify no docker
-jazracherif adm sudo audio dip plugdev users lpadmin  
-> newgrp docker  
-> groups // shows docker group
-docker adm sudo audio dip plugdev users lpadmin jazracherif
-
+> groups
 ```
 
-We need the Blackwell-optimized containers.
+```bash
+> newgrp docker  
+> groups
+```
+
+Now we can pull the VLLM Blackwell-optimized containers.
 
 ``` bash
 # Inference Engine
 docker pull nvcr.io/nvidia/vllm:25.09-py3
+```
 
+``` bash
 # Dev Environment (Must be 25.10 for CUDA 13 support)
 docker pull nvcr.io/nvidia/pytorch:25.10-py3
-
 ```
 
 ### Part 2: Python Setup
 
-Installs the tools for the Flux Image Generation demo.
-
-Setup environment
+Setup the python virtual environment and install requirements
 
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
 ```
 
-Install from requirement_full for the versioned package
+Install from requirement_full for the versioned package. Main packages found in requirements.txt
 ``` bash
 pip install -r requirements_full.txt
 ```
@@ -105,7 +111,6 @@ pip install -r requirements_full.txt
 ### Part 3: Compiling NCCL (The Communication Layer)
 
 NVIDIA DGX tutorial: <https://build.nvidia.com/spark/nccl/overview>
-
 Nccl repo: <https://github.com/NVIDIA/nccl?tab=readme-ov-file>
 
 We need to build the high-speed interconnect drivers from scratch to match your OS kernel.
