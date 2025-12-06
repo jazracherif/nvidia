@@ -113,15 +113,12 @@ We need to build the high-speed interconnect drivers from scratch to match your 
 #### 1\. Install Build Tools
 
 ``` bash
-sudo apt update
-sudo apt install -y build-essential devscripts debhelper fakeroot git libopenmpi-dev openmpi-bin
-
+sudo apt-get update && sudo apt-get install -y libopenmpi-dev
 ```
 
 #### 2\. Build NCCL
 
 ``` bash
-sudo apt-get update && sudo apt-get install -y libopenmpi-dev
 git clone -b v2.28.3-1 https://github.com/NVIDIA/nccl.git ~/nccl/
 cd ~/nccl/
 make -j src.build NVCC_GENCODE="-gencode=arch=compute_121,code=sm_121"
