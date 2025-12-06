@@ -92,9 +92,14 @@ Installs the tools for the Flux Image Generation demo.
 
 Setup environment
 
-``` bash
-pip install xfuser diffusers transformers accelerate sentencepiece protobuf
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+```
 
+Install from requirement_full for the versioned package
+``` bash
+pip install -r requirements_full.txt
 ```
 
 ### Part 3: Compiling NCCL (The Communication Layer)
