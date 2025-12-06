@@ -110,8 +110,9 @@ pip install -r requirements_full.txt
 
 ### Part 3: Compiling NCCL (The Communication Layer)
 
-NVIDIA DGX tutorial: <https://build.nvidia.com/spark/nccl/overview>
-Nccl repo: <https://github.com/NVIDIA/nccl?tab=readme-ov-file>
+This section taken from the NVIDIA DGX tutorial: <https://build.nvidia.com/spark/nccl/overview>
+
+Nccl repo: <https://github.com/NVIDIA/nccl>
 
 We need to build the high-speed interconnect drivers from scratch to match your OS kernel.
 
