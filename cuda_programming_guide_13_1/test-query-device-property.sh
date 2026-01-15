@@ -77,6 +77,27 @@ echo "=========================================="
 ./"$EXECUTABLE" all
 echo ""
 
+# Test 8: Query compute capability
+echo "=========================================="
+echo "Test 8: Query compute capability (cc)"
+echo "=========================================="
+./"$EXECUTABLE" cc
+echo ""
+
+# Test 9: Query toolkit and driver versions
+echo "=========================================="
+echo "Test 9: Query toolkit and driver versions"
+echo "=========================================="
+./"$EXECUTABLE" toolkit:driver
+echo ""
+
+# Test 10: Query mixed properties including new ones
+echo "=========================================="
+echo "Test 10: Mixed properties (cc:sm:smpm)"
+echo "=========================================="
+./"$EXECUTABLE" cc:sm:smpm
+echo ""
+
 echo "=========================================="
 echo "All tests completed!"
 echo "=========================================="
