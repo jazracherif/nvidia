@@ -2,6 +2,8 @@
 
 This folder contains CUDA kernel examples demonstrating various GPU programming concepts based on NVIDIA's CUDA Programming Guide version 13.1.
 
+NOTE: The code, test, and readme are in part or in whole create with support from an AI coding agent.
+
 ## Files Overview
 
 ### 1. `2.1.3-memory-vecAdd.cu`
