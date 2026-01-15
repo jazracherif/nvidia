@@ -112,6 +112,13 @@ echo "=========================================="
 ./"$EXECUTABLE" tcm
 echo ""
 
+# Test 13: Query L2 cache size
+echo "=========================================="
+echo "Test 13: Query L2 cache size (l2cs)"
+echo "=========================================="
+./"$EXECUTABLE" l2cs
+echo ""
+
 echo "=========================================="
 echo "All tests completed!"
 echo "=========================================="

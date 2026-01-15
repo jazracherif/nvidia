@@ -20,6 +20,10 @@
                                 (prop).totalConstMem, \
                                 (prop).totalConstMem / 1024.0)
 
+#define PRINT_L2CS(prop) printf("  L2 cache size: %d bytes (%.2f MB)\n", \
+                                 (prop).l2CacheSize, \
+                                 (prop).l2CacheSize / (1024.0 * 1024.0))
+
 #define PRINT_CC(prop) printf("  Compute capability: %d.%d\n", \
                                (prop).major, (prop).minor)
 
@@ -48,6 +52,7 @@ typedef enum {
     PROP_RGPM,              // regsPerMultiprocessor
     PROP_RGPB,              // regsPerBlock
     PROP_TCM,               // totalConstMem
+    PROP_L2CS,              // l2CacheSize
     PROP_CC,                // Compute Capability (major.minor)
     PROP_SM,                // SM Version
     PROP_TOOLKIT,           // CUDA Toolkit Version
@@ -61,6 +66,7 @@ PropertyType getPropertyType(const char* prop) {
     if (strcmp(prop, "rgpm") == 0) return PROP_RGPM;
     if (strcmp(prop, "rgpb") == 0) return PROP_RGPB;
     if (strcmp(prop, "tcm") == 0) return PROP_TCM;
+    if (strcmp(prop, "l2cs") == 0) return PROP_L2CS;
     if (strcmp(prop, "cc") == 0) return PROP_CC;
     if (strcmp(prop, "sm") == 0) return PROP_SM;
     if (strcmp(prop, "toolkit") == 0) return PROP_TOOLKIT;
@@ -77,6 +83,7 @@ void printUsage(const char* progName) {
     printf("  rgpm    - regsPerMultiprocessor\n");
     printf("  rgpb    - regsPerBlock\n");
     printf("  tcm     - totalConstMem\n");
+    printf("  l2cs    - l2CacheSize\n");
     printf("  cc      - compute capability\n");
     printf("  sm      - SM version\n");
     printf("  toolkit - CUDA Toolkit version\n");
@@ -120,6 +127,9 @@ void queryDeviceProperties(int deviceId, const char* properties) {
             case PROP_TCM:
                 PRINT_TCM(prop);
                 break;
+            case PROP_L2CS:
+                PRINT_L2CS(prop);
+                break;
             case PROP_CC:
                 PRINT_CC(prop);
                 break;
@@ -138,6 +148,7 @@ void queryDeviceProperties(int deviceId, const char* properties) {
                 PRINT_RGPM(prop);
                 PRINT_RGPB(prop);
                 PRINT_TCM(prop);
+                PRINT_L2CS(prop);
                 PRINT_CC(prop);
                 PRINT_SM(prop);
                 printToolkitVersion();
