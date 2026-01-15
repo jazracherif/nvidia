@@ -98,6 +98,20 @@ echo "=========================================="
 ./"$EXECUTABLE" cc:sm:smpm
 echo ""
 
+# Test 11: Query register properties
+echo "=========================================="
+echo "Test 11: Query register properties (rgpm:rgpb)"
+echo "=========================================="
+./"$EXECUTABLE" rgpm:rgpb
+echo ""
+
+# Test 12: Query total constant memory
+echo "=========================================="
+echo "Test 12: Query total constant memory (tcm)"
+echo "=========================================="
+./"$EXECUTABLE" tcm
+echo ""
+
 echo "=========================================="
 echo "All tests completed!"
 echo "=========================================="
