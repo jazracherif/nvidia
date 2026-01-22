@@ -111,6 +111,82 @@ Device 0: NVIDIA GeForce RTX 3090
 
 ---
 
+### 4. `2.3.3.4-cuda-events.cu`
+**CUDA Events and Asynchronous Stream Execution**
+
+Demonstrates advanced stream management using CUDA events to coordinate asynchronous operations across multiple streams.
+
+**Concept:**
+This program illustrates how CUDA events enable fine-grained synchronization between operations on different streams without blocking the host CPU. The key technique shown is:
+1. Launching kernels on one stream (stream1)
+2. Recording an event after a specific kernel completes
+3. Using `cudaEventQuery()` to non-blockingly check if that kernel has finished
+4. Starting an asynchronous memory copy on a separate stream (stream2) as soon as the event signals completion
+5. Continuing CPU work concurrently with GPU operations
+
+**Architecture:**
+```
+Stream 1:  [vecInit] --EVENT--> [vecInitRandom] --> [computeIntensiveKernel]
+                        ↓
+                    (query event)
+                        ↓
+Stream 2:               [cudaMemcpyAsync D→H]
+
+CPU:       [doNextChunkOfCPUWork...] (runs concurrently)
+```
+
+**Features:**
+- **Dual Stream Execution**: Separates compute (stream1) from data transfer (stream2)
+- **Event-Based Coordination**: Uses `cudaEventRecord()` and `cudaEventQuery()` to trigger actions without blocking
+- **CPU/GPU Overlap**: CPU continues working while GPU kernels execute
+- **Compute Kernels**:
+  - `vecInit`: Initializes array with a constant value
+  - `vecInitRandom`: Populates array with pseudo-random values
+  - `computeIntensiveKernel`: Performs heavy mathematical operations (sin, cos, sqrt, exp, log, pow)
+- **Pinned Memory**: Uses `cudaMallocHost()` for faster async transfers
+- **Comprehensive Error Checking**: All CUDA calls wrapped in `CUDA_CHECK` macro
+
+**How it works:**
+1. Allocate device and pinned host memory
+2. Create two streams for parallel execution
+3. Launch `vecInit` kernel on stream1 and immediately record an event
+4. Launch additional compute kernels on stream1
+5. While GPU is busy, CPU polls the event in a non-blocking loop
+6. As soon as the event indicates `vecInit` completed, start async D2H copy on stream2
+7. CPU continues its work while both streams execute concurrently
+8. Synchronize both streams before cleanup
+
+**Why this matters:**
+- **Overlap**: Demonstrates how to overlap computation with data transfer
+- **CPU Utilization**: CPU isn't blocked waiting for GPU
+- **Efficiency**: Multiple operations execute simultaneously across streams
+- **Real-world Pattern**: Common in production pipelines where you want to copy results back as soon as they're ready, without waiting for all GPU work to finish
+
+**How to compile and run:**
+```bash
+nvcc -O2 -arch=sm_120 -o 2.3.3.4-cuda-events 2.3.3.4-cuda-events.cu
+./2.3.3.4-cuda-events
+```
+
+**Expected output:**
+```
+work_left 5
+work_left 4
+work_left 3
+work_left 2
+work_left 1
+start async copy
+work_left 0
+```
+
+**Profile with Nsight Systems:**
+```bash
+nsys profile -o 2.3.3.4-cuda-events ./2.3.3.4-cuda-events
+```
+The timeline will show stream1 and stream2 executing concurrently, with the memory copy starting before all compute kernels finish.
+
+---
+
 ## Testing
 
 A test script is provided for the query tool:

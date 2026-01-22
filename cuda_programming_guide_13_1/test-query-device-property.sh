@@ -18,7 +18,7 @@ fi
 
 # Compile the CUDA program
 echo "Compiling $CUDA_FILE..."
-nvcc -o "$EXECUTABLE" "$CUDA_FILE"
+nvcc -O2 -arch=sm_120 -o "$EXECUTABLE" "$CUDA_FILE"
 
 if [ $? -eq 0 ]; then
     echo "✓ Compilation successful"
