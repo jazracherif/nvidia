@@ -9,6 +9,12 @@
 #define PRINT_MTPM(prop) printf("  Max threads per multiprocessor: %d\n", \
                                  (prop).maxThreadsPerMultiProcessor)
 
+#define PRINT_MPC(prop) printf("  Multiprocessor count: %d\n", \
+                                (prop).multiProcessorCount)
+
+#define PRINT_MBW(prop) printf("  Memory bus width: %d-bit\n", \
+                                (prop).memoryBusWidth)
+
 #define PRINT_MBPM(deviceId) do { \
     int value = 0; \
     cudaDeviceGetAttribute(&value, cudaDevAttrMaxBlocksPerMultiprocessor, deviceId); \
@@ -56,6 +62,30 @@
     printf("  Pageable Memory Access Uses Host Page Tables: %s\n", value ? "Yes" : "No"); \
 } while(0)
 
+#define PRINT_UMS(deviceId) do { \
+    int concurrentManagedAccess = -1; \
+    cudaDeviceGetAttribute(&concurrentManagedAccess, cudaDevAttrConcurrentManagedAccess, deviceId); \
+    int pageableMemoryAccess = -1; \
+    cudaDeviceGetAttribute(&pageableMemoryAccess, cudaDevAttrPageableMemoryAccess, deviceId); \
+    int pageableMemoryAccessUsesHostPageTables = -1; \
+    cudaDeviceGetAttribute(&pageableMemoryAccessUsesHostPageTables, cudaDevAttrPageableMemoryAccessUsesHostPageTables, deviceId); \
+    printf("  Unified Memory Support (CMA:%d, PMA:%d, PMAHPT:%d): ", \
+           concurrentManagedAccess, pageableMemoryAccess, pageableMemoryAccessUsesHostPageTables); \
+    if(concurrentManagedAccess) { \
+        if(pageableMemoryAccess) { \
+            printf("full unified memory support"); \
+            if(pageableMemoryAccessUsesHostPageTables) \
+                { printf(" with hardware coherency\n"); } \
+            else \
+                { printf(" with software coherency\n"); } \
+        } \
+        else \
+            { printf("full unified memory support for CUDA-made managed allocations\n"); } \
+    } \
+    else \
+        { printf("limited unified memory support: Windows, WSL, or Tegra\n"); } \
+} while(0)
+
 void printToolkitVersion() {
     int runtimeVersion = 0;
     cudaRuntimeGetVersion(&runtimeVersion);
@@ -76,6 +106,8 @@ typedef enum {
     PROP_UNKNOWN = 0,       // Unknown property
     PROP_SMPM,              // sharedMemPerMultiprocessor
     PROP_MTPM,              // maxThreadsPerMultiProcessor
+    PROP_MPC,               // multiProcessorCount
+    PROP_MBW,               // memoryBusWidth
     PROP_MBPM,              // maxBlocksPerMultiprocessor
     PROP_SMPB,              // sharedMemPerBlock
     PROP_RGPM,              // regsPerMultiprocessor
@@ -89,12 +121,15 @@ typedef enum {
     PROP_CMA,               // Concurrent Managed Access
     PROP_PMA,               // Pageable Memory Access
     PROP_PMAHPT,            // Pageable Memory Access Uses Host Page Tables
+    PROP_UMS,               // Unified Memory Support Summary
     PROP_ALL                // All supported properties
 } PropertyType;
 
 PropertyType getPropertyType(const char* prop) {
     if (strcmp(prop, "smpm") == 0) return PROP_SMPM;
     if (strcmp(prop, "mtpm") == 0) return PROP_MTPM;
+    if (strcmp(prop, "mpc") == 0) return PROP_MPC;
+    if (strcmp(prop, "mbw") == 0) return PROP_MBW;
     if (strcmp(prop, "mbpm") == 0) return PROP_MBPM;
     if (strcmp(prop, "smpb") == 0) return PROP_SMPB;
     if (strcmp(prop, "rgpm") == 0) return PROP_RGPM;
@@ -108,6 +143,7 @@ PropertyType getPropertyType(const char* prop) {
     if (strcmp(prop, "cma") == 0) return PROP_CMA;
     if (strcmp(prop, "pma") == 0) return PROP_PMA;
     if (strcmp(prop, "pmahpt") == 0) return PROP_PMAHPT;
+    if (strcmp(prop, "ums") == 0) return PROP_UMS;
     if (strcmp(prop, "all") == 0) return PROP_ALL;
     return PROP_UNKNOWN;
 }
@@ -117,6 +153,8 @@ void printUsage(const char* progName) {
     printf("Available properties (diminutives):\n");
     printf("  smpm    - sharedMemPerMultiprocessor\n");
     printf("  mtpm    - maxThreadsPerMultiProcessor\n");
+    printf("  mpc     - multiProcessorCount\n");
+    printf("  mbw     - memoryBusWidth\n");
     printf("  mbpm    - maxBlocksPerMultiprocessor\n");
     printf("  smpb    - sharedMemPerBlock\n");
     printf("  rgpm    - regsPerMultiprocessor\n");
@@ -130,6 +168,7 @@ void printUsage(const char* progName) {
     printf("  cma     - concurrent managed access (1: full unified - 0: limited support)\n");
     printf("  pma     - pageable memory access (1: all system memory - 0: only explicit managed memory\n");
     printf("  pmahpt  - pageable memory access uses host page tables (1: Hw - 0: SW\n");
+    printf("  ums  - Unified Memory Support Summary\n");
     printf("  all     - all supported properties\n");
     printf("Note: For NVIDIA driver version (e.g., 580.95.05), use nvidia-smi\n");
     printf("Example: %s smpm:smpb:cc\n", progName);
@@ -159,6 +198,12 @@ void queryDeviceProperties(int deviceId, const char* properties) {
                 break;
             case PROP_MTPM:
                 PRINT_MTPM(prop);
+                break;
+            case PROP_MPC:
+                PRINT_MPC(prop);
+                break;
+            case PROP_MBW:
+                PRINT_MBW(prop);
                 break;
             case PROP_MBPM:
                 PRINT_MBPM(deviceId);
@@ -199,9 +244,14 @@ void queryDeviceProperties(int deviceId, const char* properties) {
             case PROP_PMAHPT:
                 PRINT_PMAHPT(deviceId);
                 break;
+            case PROP_UMS:
+                PRINT_UMS(deviceId);
+                break;
             case PROP_ALL:
                 PRINT_SMPM(prop);
                 PRINT_MTPM(prop);
+                PRINT_MPC(prop);
+                PRINT_MBW(prop);
                 PRINT_MBPM(deviceId);
                 PRINT_SMPB(prop);
                 PRINT_RGPM(prop);
@@ -215,6 +265,7 @@ void queryDeviceProperties(int deviceId, const char* properties) {
                 PRINT_CMA(deviceId);
                 PRINT_PMA(deviceId);
                 PRINT_PMAHPT(deviceId);
+                PRINT_UMS(deviceId);
                 break;
             case PROP_UNKNOWN:
             default:
