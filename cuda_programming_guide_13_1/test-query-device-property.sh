@@ -119,6 +119,55 @@ echo "=========================================="
 ./"$EXECUTABLE" l2cs
 echo ""
 
+# Test 14: Query max threads per multiprocessor
+echo "=========================================="
+echo "Test 14: Query max threads per multiprocessor (mtpm)"
+echo "=========================================="
+./"$EXECUTABLE" mtpm
+echo ""
+
+# Test 15: Query max blocks per multiprocessor
+echo "=========================================="
+echo "Test 15: Query max blocks per multiprocessor (mbpm)"
+echo "=========================================="
+./"$EXECUTABLE" mbpm
+echo ""
+
+# Test 16: Query per-SM properties together
+echo "=========================================="
+echo "Test 16: Query per-SM properties (smpm:mtpm:mbpm)"
+echo "=========================================="
+./"$EXECUTABLE" smpm:mtpm:mbpm
+echo ""
+
+# Test 17: Query concurrent managed access
+echo "=========================================="
+echo "Test 17: Query concurrent managed access (cma)"
+echo "=========================================="
+./"$EXECUTABLE" cma
+echo ""
+
+# Test 18: Query pageable memory access
+echo "=========================================="
+echo "Test 18: Query pageable memory access (pma)"
+echo "=========================================="
+./"$EXECUTABLE" pma
+echo ""
+
+# Test 19: Query pageable memory access uses host page tables
+echo "=========================================="
+echo "Test 19: Query pageable memory access uses host page tables (pmahpt)"
+echo "=========================================="
+./"$EXECUTABLE" pmahpt
+echo ""
+
+# Test 20: Query memory access properties together
+echo "=========================================="
+echo "Test 20: Query memory access properties (cma:pma:pmahpt)"
+echo "=========================================="
+./"$EXECUTABLE" cma:pma:pmahpt
+echo ""
+
 echo "=========================================="
 echo "All tests completed!"
 echo "=========================================="

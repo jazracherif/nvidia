@@ -6,6 +6,15 @@
                                  (prop).sharedMemPerMultiprocessor, \
                                  (prop).sharedMemPerMultiprocessor / 1024.0)
 
+#define PRINT_MTPM(prop) printf("  Max threads per multiprocessor: %d\n", \
+                                 (prop).maxThreadsPerMultiProcessor)
+
+#define PRINT_MBPM(deviceId) do { \
+    int value = 0; \
+    cudaDeviceGetAttribute(&value, cudaDevAttrMaxBlocksPerMultiprocessor, deviceId); \
+    printf("  Max blocks per multiprocessor: %d\n", value); \
+} while(0)
+
 #define PRINT_SMPB(prop) printf("  Shared memory per block: %zu bytes (%.2f KB)\n", \
                                  (prop).sharedMemPerBlock, \
                                  (prop).sharedMemPerBlock / 1024.0)
@@ -29,6 +38,24 @@
 
 #define PRINT_SM(prop) printf("  SM version: %d\n", (prop).major * 10 + (prop).minor)
 
+#define PRINT_CMA(deviceId) do { \
+    int value = 0; \
+    cudaDeviceGetAttribute(&value, cudaDevAttrConcurrentManagedAccess, deviceId); \
+    printf("  Concurrent Managed Access: %s\n", value ? "Yes" : "No"); \
+} while(0)
+
+#define PRINT_PMA(deviceId) do { \
+    int value = 0; \
+    cudaDeviceGetAttribute(&value, cudaDevAttrPageableMemoryAccess, deviceId); \
+    printf("  Pageable Memory Access: %s\n", value ? "Yes" : "No"); \
+} while(0)
+
+#define PRINT_PMAHPT(deviceId) do { \
+    int value = 0; \
+    cudaDeviceGetAttribute(&value, cudaDevAttrPageableMemoryAccessUsesHostPageTables, deviceId); \
+    printf("  Pageable Memory Access Uses Host Page Tables: %s\n", value ? "Yes" : "No"); \
+} while(0)
+
 void printToolkitVersion() {
     int runtimeVersion = 0;
     cudaRuntimeGetVersion(&runtimeVersion);
@@ -48,6 +75,8 @@ void printDriverVersion() {
 typedef enum {
     PROP_UNKNOWN = 0,       // Unknown property
     PROP_SMPM,              // sharedMemPerMultiprocessor
+    PROP_MTPM,              // maxThreadsPerMultiProcessor
+    PROP_MBPM,              // maxBlocksPerMultiprocessor
     PROP_SMPB,              // sharedMemPerBlock
     PROP_RGPM,              // regsPerMultiprocessor
     PROP_RGPB,              // regsPerBlock
@@ -57,11 +86,16 @@ typedef enum {
     PROP_SM,                // SM Version
     PROP_TOOLKIT,           // CUDA Toolkit Version
     PROP_DRIVER,            // CUDA Driver API Version
+    PROP_CMA,               // Concurrent Managed Access
+    PROP_PMA,               // Pageable Memory Access
+    PROP_PMAHPT,            // Pageable Memory Access Uses Host Page Tables
     PROP_ALL                // All supported properties
 } PropertyType;
 
 PropertyType getPropertyType(const char* prop) {
     if (strcmp(prop, "smpm") == 0) return PROP_SMPM;
+    if (strcmp(prop, "mtpm") == 0) return PROP_MTPM;
+    if (strcmp(prop, "mbpm") == 0) return PROP_MBPM;
     if (strcmp(prop, "smpb") == 0) return PROP_SMPB;
     if (strcmp(prop, "rgpm") == 0) return PROP_RGPM;
     if (strcmp(prop, "rgpb") == 0) return PROP_RGPB;
@@ -71,6 +105,9 @@ PropertyType getPropertyType(const char* prop) {
     if (strcmp(prop, "sm") == 0) return PROP_SM;
     if (strcmp(prop, "toolkit") == 0) return PROP_TOOLKIT;
     if (strcmp(prop, "driver") == 0) return PROP_DRIVER;
+    if (strcmp(prop, "cma") == 0) return PROP_CMA;
+    if (strcmp(prop, "pma") == 0) return PROP_PMA;
+    if (strcmp(prop, "pmahpt") == 0) return PROP_PMAHPT;
     if (strcmp(prop, "all") == 0) return PROP_ALL;
     return PROP_UNKNOWN;
 }
@@ -79,6 +116,8 @@ void printUsage(const char* progName) {
     printf("Usage: %s <prop1>:<prop2>:...\n", progName);
     printf("Available properties (diminutives):\n");
     printf("  smpm    - sharedMemPerMultiprocessor\n");
+    printf("  mtpm    - maxThreadsPerMultiProcessor\n");
+    printf("  mbpm    - maxBlocksPerMultiprocessor\n");
     printf("  smpb    - sharedMemPerBlock\n");
     printf("  rgpm    - regsPerMultiprocessor\n");
     printf("  rgpb    - regsPerBlock\n");
@@ -88,6 +127,9 @@ void printUsage(const char* progName) {
     printf("  sm      - SM version\n");
     printf("  toolkit - CUDA Toolkit version\n");
     printf("  driver  - CUDA Driver API version\n");
+    printf("  cma     - concurrent managed access (1: full unified - 0: limited support)\n");
+    printf("  pma     - pageable memory access (1: all system memory - 0: only explicit managed memory\n");
+    printf("  pmahpt  - pageable memory access uses host page tables (1: Hw - 0: SW\n");
     printf("  all     - all supported properties\n");
     printf("Note: For NVIDIA driver version (e.g., 580.95.05), use nvidia-smi\n");
     printf("Example: %s smpm:smpb:cc\n", progName);
@@ -114,6 +156,12 @@ void queryDeviceProperties(int deviceId, const char* properties) {
         switch (propType) {
             case PROP_SMPM:
                 PRINT_SMPM(prop);
+                break;
+            case PROP_MTPM:
+                PRINT_MTPM(prop);
+                break;
+            case PROP_MBPM:
+                PRINT_MBPM(deviceId);
                 break;
             case PROP_SMPB:
                 PRINT_SMPB(prop);
@@ -142,8 +190,19 @@ void queryDeviceProperties(int deviceId, const char* properties) {
             case PROP_DRIVER:
                 printDriverVersion();
                 break;
+            case PROP_CMA:
+                PRINT_CMA(deviceId);
+                break;
+            case PROP_PMA:
+                PRINT_PMA(deviceId);
+                break;
+            case PROP_PMAHPT:
+                PRINT_PMAHPT(deviceId);
+                break;
             case PROP_ALL:
                 PRINT_SMPM(prop);
+                PRINT_MTPM(prop);
+                PRINT_MBPM(deviceId);
                 PRINT_SMPB(prop);
                 PRINT_RGPM(prop);
                 PRINT_RGPB(prop);
@@ -153,6 +212,9 @@ void queryDeviceProperties(int deviceId, const char* properties) {
                 PRINT_SM(prop);
                 printToolkitVersion();
                 printDriverVersion();
+                PRINT_CMA(deviceId);
+                PRINT_PMA(deviceId);
+                PRINT_PMAHPT(deviceId);
                 break;
             case PROP_UNKNOWN:
             default:
