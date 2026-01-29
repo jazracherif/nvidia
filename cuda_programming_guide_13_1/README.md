@@ -35,7 +35,7 @@ Demonstrates different memory management techniques for GPU programming:
 
 **How to compile and run:**
 ```bash
-nvcc -arch=native -o bin/vecAdd 2.1.3-memory-vecAdd.cu
+nvcc -arch=native -o bin/vecAdd src/2.1.3-memory-vecAdd.cu
 ./bin/vecAdd
 ```
 
@@ -66,7 +66,7 @@ error: __cluster_dims__ is not supported for this GPU architecture
 
 **How to compile and run:**
 ```bash
-nvcc -arch=native -o bin/threadCluster 2.1.10-thread-cluster.cu
+nvcc -arch=native -o bin/threadCluster src/2.1.10-thread-cluster.cu
 ./bin/threadCluster
 ```
 
@@ -86,7 +86,7 @@ A utility program to query and display GPU device properties, specifically focus
 
 **How to compile:**
 ```bash
-nvcc -arch=native -o bin/query-device-property query-device-property.cu
+nvcc -arch=native -o bin/query-device-property src/query-device-property.cu
 ```
 
 **Usage:**
@@ -178,7 +178,7 @@ CPU:       [doNextChunkOfCPUWork...] (runs concurrently)
 
 **How to compile and run:**
 ```bash
-nvcc -O2 -arch=native -o bin/2.3.3.4-cuda-events 2.3.3.4-cuda-events.cu
+nvcc -O2 -arch=native -o bin/2.3.3.4-cuda-events src/2.3.3.4-cuda-events.cu
 ./bin/2.3.3.4-cuda-events
 ```
 

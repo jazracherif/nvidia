@@ -2,13 +2,16 @@
 
 set -e
 
-CUDA_FILE="query-device-property.cu"
-EXECUTABLE="query-device-property"
+CUDA_FILE="src/query-device-property.cu"
+EXECUTABLE="bin/query-device-property"
 
 echo "=========================================="
 echo "Testing CUDA Device Property Query Program"
 echo "=========================================="
 echo ""
+
+# Create bin directory if it doesn't exist
+mkdir -p bin
 
 # Clean up any existing executable
 if [ -f "$EXECUTABLE" ]; then
@@ -18,7 +21,7 @@ fi
 
 # Compile the CUDA program
 echo "Compiling $CUDA_FILE..."
-nvcc -O2 -arch=sm_120 -o "$EXECUTABLE" "$CUDA_FILE"
+nvcc -O2 -arch=native -o "$EXECUTABLE" "$CUDA_FILE"
 
 if [ $? -eq 0 ]; then
     echo "✓ Compilation successful"
