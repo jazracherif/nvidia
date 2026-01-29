@@ -89,6 +89,94 @@ This is particularly useful for:
 - Capturing error logs from long-running programs
 - Analyzing intermittent issues that are hard to reproduce
 
+### Analyzing Kernel Resource Usage with -res-usage
+
+The `-res-usage` flag in `nvcc` provides detailed information about resource consumption for each kernel during compilation. This helps optimize kernel performance by understanding register usage, memory requirements, and potential bottlenecks.
+
+**Usage:**
+```bash
+nvcc -res-usage [other flags] -o <binary> <source.cu>
+```
+
+**Example:**
+```bash
+nvcc -res-usage -O2 -arch=native -o bin/2.3.3.4-cuda-events src/2.3.3.4-cuda-events.cu
+```
+
+**Output Analysis:**
+
+```
+ptxas info    : 48 bytes gmem
+ptxas info    : Compiling entry function '_Z22computeIntensiveKernelPfi' for 'sm_121'
+ptxas info    : Function properties for _Z22computeIntensiveKernelPfi
+    32 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 24 registers, used 0 barriers, 32 bytes cumulative stack size
+ptxas info    : Compile time = 7.603 ms
+ptxas info    : Compiling entry function '_Z13vecInitRandomPfii' for 'sm_121'
+ptxas info    : Function properties for _Z13vecInitRandomPfii
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 10 registers, used 0 barriers
+ptxas info    : Compile time = 1.078 ms
+ptxas info    : Compiling entry function '_Z6vecMulPfii' for 'sm_121'
+ptxas info    : Function properties for _Z6vecMulPfii
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 8 registers, used 0 barriers
+ptxas info    : Compile time = 0.622 ms
+ptxas info    : Compiling entry function '_Z7vecInitPfii' for 'sm_121'
+ptxas info    : Function properties for _Z7vecInitPfii
+    0 bytes stack frame, 0 bytes spill stores, 0 bytes spill loads
+ptxas info    : Used 8 registers, used 0 barriers
+ptxas info    : Compile time = 0.476 ms
+```
+
+**Key Metrics Explained:**
+
+1. **Global Memory (gmem)**: `48 bytes gmem`
+   - Total size of kernel parameters across all kernels in the compilation unit
+   - Each kernel's parameters (pointers, integers, etc.) are stored in constant memory
+   - In this case: 4 kernels with parameters totaling 48 bytes
+     - `vecInit(float*, int, int)`: 16 bytes (8 bytes (pointer) + 4 bytes (int) + 4 bytes (int))
+     - `vecMul(float*, int, int)`: 16 bytes  
+     - `vecInitRandom(float*, int, int)`: 16 bytes
+     - `computeIntensiveKernel(float*, int)`: aligned to 16 bytes (8+4+padding)
+   - This is stored in constant cache, not regular global memory
+
+2. **Register Usage**: `Used 24 registers` (for `computeIntensiveKernel`)
+   - Each thread uses 24 registers
+   - Higher register usage can limit occupancy (threads per SM)
+   - GPUs have limited registers per SM (e.g., 65536 on many architectures)
+   - Lower register count allows more concurrent threads
+
+3. **Stack Frame**: `32 bytes stack frame`
+   - Local memory allocated on the stack per thread
+   - Used for local arrays or when register spilling occurs
+   - Stored in slower local memory (cached in L1/L2)
+
+4. **Spill Stores/Loads**: `0 bytes spill stores, 0 bytes spill loads`
+   - Register spilling occurs when a kernel uses more registers than available
+   - Spilled registers are saved to local memory (slow)
+   - Zero spills indicates efficient register allocation
+
+5. **Barriers**: `used 0 barriers`
+   - Number of `__syncthreads()` or similar synchronization points
+   - Barriers can impact performance if overused
+
+6. **Compile Time**: Time taken by `ptxas` to compile each kernel
+
+**Performance Implications:**
+
+- **`computeIntensiveKernel`**: Uses 24 registers with 32-byte stack - reasonable for complex math operations
+- **`vecInitRandom`**: 10 registers, no stack - lightweight kernel
+- **`vecMul` and `vecInit`**: 8 registers each - very efficient, allows maximum occupancy
+- **No spilling**: Excellent - all variables fit in registers
+- **No barriers**: Good for compute kernels that don't require thread synchronization
+
+**Optimization Tips:**
+- Monitor register usage to maximize occupancy
+- Zero spills is ideal; non-zero spills suggest need for optimization
+- Consider breaking up complex kernels if register count is too high
+- Use `__launch_bounds__` to control register allocation
+
 ### Understanding CUDA Compilation Pipeline
 
 The `nvcc` compiler uses the `-time` flag to generate detailed timing information about each compilation phase, revealing the complex multi-stage process that transforms CUDA source code into an executable.
