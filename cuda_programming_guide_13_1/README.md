@@ -12,6 +12,7 @@ NOTE: The code, test, and readme are in part or in whole create with support fro
 - [Common Issues](#common-issues)
 - [Important CUDA Tips](#important-cuda-tips)
   - [Debugging with CUDA_LOG_FILE](#debugging-with-cuda_log_file)
+  - [Analyzing Kernel Resource Usage with -res-usage](#analyzing-kernel-resource-usage-with--res-usage)
   - [Understanding CUDA Compilation Pipeline](#understanding-cuda-compilation-pipeline)
 - [Additional Resources](#additional-resources)
 
