@@ -4,6 +4,20 @@ This folder contains CUDA kernel examples demonstrating various GPU programming 
 
 NOTE: The code, test, and readme are in part or in whole create with support from an AI coding agent.
 
+## Table of Contents
+
+- [Files Overview](#files-overview)
+  - [1. `2.1.3-memory-vecAdd.cu`](#1-213-memory-vecaddcu)
+  - [2. `2.1.10-thread-cluster.cu`](#2-2110-thread-clustercu)
+  - [3. `query-device-property.cu`](#3-query-device-propertycu)
+  - [4. `2.3.3.4-cuda-events.cu`](#4-2334-cuda-eventscu)
+- [Testing](#testing)
+- [Requirements](#requirements)
+- [Common Issues](#common-issues)
+- [Important CUDA Tips](#important-cuda-tips)
+  - [Debugging with CUDA_LOG_FILE](#debugging-with-cuda_log_file)
+- [Additional Resources](#additional-resources)
+
 ## Files Overview
 
 ### 1. `2.1.3-memory-vecAdd.cu`
@@ -21,8 +35,8 @@ Demonstrates different memory management techniques for GPU programming:
 
 **How to compile and run:**
 ```bash
-nvcc -o vecAdd 2.1.3-memory-vecAdd.cu
-./vecAdd
+nvcc -arch=native -o bin/vecAdd 2.1.3-memory-vecAdd.cu
+./bin/vecAdd
 ```
 
 **Expected output:**
@@ -52,8 +66,8 @@ error: __cluster_dims__ is not supported for this GPU architecture
 
 **How to compile and run:**
 ```bash
-nvcc -o threadCluster 2.1.10-thread-cluster.cu
-./threadCluster
+nvcc -arch=native -o bin/threadCluster 2.1.10-thread-cluster.cu
+./bin/threadCluster
 ```
 
 ---
@@ -72,12 +86,12 @@ A utility program to query and display GPU device properties, specifically focus
 
 **How to compile:**
 ```bash
-nvcc -o query-device-property query-device-property.cu
+nvcc -arch=native -o bin/query-device-property query-device-property.cu
 ```
 
 **Usage:**
 ```bash
-./query-device-property <prop1>:<prop2>:...
+./bin/query-device-property <prop1>:<prop2>:...
 ```
 
 **Available properties:**
@@ -88,16 +102,16 @@ nvcc -o query-device-property query-device-property.cu
 **Examples:**
 ```bash
 # Query shared memory per multiprocessor
-./query-device-property smpm
+./bin/query-device-property smpm
 
 # Query shared memory per block
-./query-device-property smpb
+./bin/query-device-property smpb
 
 # Query both properties
-./query-device-property smpm:smpb
+./bin/query-device-property smpm:smpb
 
 # Query all properties
-./query-device-property all
+./bin/query-device-property all
 ```
 
 **Example output:**
@@ -164,8 +178,8 @@ CPU:       [doNextChunkOfCPUWork...] (runs concurrently)
 
 **How to compile and run:**
 ```bash
-nvcc -O2 -arch=sm_120 -o 2.3.3.4-cuda-events 2.3.3.4-cuda-events.cu
-./2.3.3.4-cuda-events
+nvcc -O2 -arch=native -o bin/2.3.3.4-cuda-events 2.3.3.4-cuda-events.cu
+./bin/2.3.3.4-cuda-events
 ```
 
 **Expected output:**
@@ -181,7 +195,7 @@ work_left 0
 
 **Profile with Nsight Systems:**
 ```bash
-nsys profile -o 2.3.3.4-cuda-events ./2.3.3.4-cuda-events
+nsys profile -o 2.3.3.4-cuda-events ./bin/2.3.3.4-cuda-events
 ```
 The timeline will show stream1 and stream2 executing concurrently, with the memory copy starting before all compute kernels finish.
 
@@ -217,6 +231,43 @@ This script will:
 2. **No CUDA-capable devices found**: Ensure NVIDIA drivers are properly installed and your GPU is recognized by the system.
 
 3. **Runtime errors**: Check that CUDA Toolkit version matches your driver version using `nvidia-smi`.
+
+## Important CUDA Tips
+
+### Debugging with CUDA_LOG_FILE
+
+The `CUDA_LOG_FILE` environment variable redirects CUDA driver errors and warnings to a specified file, making it easier to debug kernel launch errors and other runtime issues without cluttering your terminal output.
+
+**Description:**
+When CUDA encounters runtime errors (such as invalid kernel launch parameters, memory access violations, or API errors), the driver can log detailed diagnostic information. By setting `CUDA_LOG_FILE`, you capture these messages in a file for later analysis.
+
+**Usage:**
+```bash
+# Set the log file and run your program
+CUDA_LOG_FILE=cudaLog.txt ./bin/program
+
+# Or export it for multiple runs
+export CUDA_LOG_FILE=cudaLog.txt
+./bin/program
+```
+
+**Combine with other debugging options:**
+```bash
+# Enable synchronous kernel launches and log to file
+CUDA_LOG_FILE=cudaLog.txt CUDA_LAUNCH_BLOCKING=1 ./bin/program
+```
+
+**Example output in cudaLog.txt:**
+```
+[14:38:03.928][280411609614528][CUDA][E] One or more of block dimensions of (2256,1,1) exceeds correspsonding maximum value of (1024,1024,64)
+[14:38:03.928][280411609614528][CUDA][E] Returning 1 (CUDA_ERROR_INVALID_VALUE) from cuLaunchKernel
+```
+
+This is particularly useful for:
+- Identifying kernel launch configuration errors
+- Debugging asynchronous operations where errors may not appear immediately
+- Capturing error logs from long-running programs
+- Analyzing intermittent issues that are hard to reproduce
 
 ## Additional Resources
 
