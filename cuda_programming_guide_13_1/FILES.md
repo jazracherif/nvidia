@@ -4,10 +4,16 @@ This document provides detailed descriptions of each CUDA example program in thi
 
 ## Table of Contents
 
-- [1. `2.1.3-memory-vecAdd.cu`](#1-213-memory-vecaddcu)
-- [2. `2.1.10-thread-cluster.cu`](#2-2110-thread-clustercu)
-- [3. `query-device-property.cu`](#3-query-device-propertycu)
-- [4. `2.3.3.4-cuda-events.cu`](#4-2334-cuda-eventscu)
+- [Program Files](#program-files)
+  - [1. `2.1.3-memory-vecAdd.cu`](#1-213-memory-vecaddcu)
+  - [2. `2.1.10-thread-cluster.cu`](#2-2110-thread-clustercu)
+  - [3. `query-device-property.cu`](#3-query-device-propertycu)
+  - [4. `2.3.3.4-cuda-events.cu`](#4-2334-cuda-eventscu)
+- [Testing](#testing)
+- [Requirements](#requirements)
+- [Common Issues](#common-issues)
+
+## Program Files
 
 ---
 
@@ -189,3 +195,36 @@ work_left 0
 nsys profile -o 2.3.3.4-cuda-events ./bin/2.3.3.4-cuda-events
 ```
 The timeline will show stream1 and stream2 executing concurrently, with the memory copy starting before all compute kernels finish.
+
+---
+
+## Testing
+
+A test script is provided for the query tool:
+
+```bash
+chmod +x test-query-device-property.sh
+./test-query-device-property.sh
+```
+
+This script will:
+1. Compile the query-device-property program
+2. Run multiple test cases to verify functionality
+3. Display results for various property queries
+
+---
+
+## Requirements
+
+- **CUDA Toolkit**: Version 11.0 or higher recommended
+- **GPU**: NVIDIA GPU with compute capability 3.5 or higher
+  - Note: Thread cluster example requires compute capability 9.0+
+- **Compiler**: `nvcc` (NVIDIA CUDA Compiler)
+
+## Common Issues
+
+1. **Compilation errors about `__cluster_dims__`**: Your GPU architecture doesn't support thread clusters. This is expected for GPUs older than Hopper (compute capability < 9.0).
+
+2. **No CUDA-capable devices found**: Ensure NVIDIA drivers are properly installed and your GPU is recognized by the system.
+
+3. **Runtime errors**: Check that CUDA Toolkit version matches your driver version using `nvidia-smi`.

@@ -7,55 +7,24 @@ NOTE: The code, test, and readme are in part or in whole create with support fro
 ## Table of Contents
 
 - [Files Overview](#files-overview)
-- [Testing](#testing)
-- [Requirements](#requirements)
-- [Common Issues](#common-issues)
 - [Important CUDA Tips](#important-cuda-tips)
-  - [Debugging with CUDA_LOG_FILE](#debugging-with-cuda_log_file)
-  - [Analyzing Kernel Resource Usage with -res-usage](#analyzing-kernel-resource-usage-with--res-usage)
-  - [Understanding CUDA Compilation Pipeline](#understanding-cuda-compilation-pipeline)
+  - [1) Debugging with CUDA_LOG_FILE](#1-debugging-with-cuda_log_file)
+  - [2) Analyzing Kernel Resource Usage with -res-usage](#2-analyzing-kernel-resource-usage-with--res-usage)
+  - [3) Understanding CUDA Compilation Pipeline](#3-understanding-cuda-compilation-pipeline)
 - [Additional Resources](#additional-resources)
 
 ## Files Overview
 
-For detailed descriptions of each CUDA example program, see [FILES.md](FILES.md).
+- [2.1.3-memory-vecAdd.cu](src/2.1.3-memory-vecAdd.cu) - Vector addition demonstrating unified and explicit memory management
+- [2.1.10-thread-cluster.cu](src/2.1.10-thread-cluster.cu) - Thread cluster programming for compute capability 9.0+ GPUs
+- [query-device-property.cu](src/query-device-property.cu) - Utility to query GPU device properties (shared memory, etc.)
+- [2.3.3.4-cuda-events.cu](src/2.3.3.4-cuda-events.cu) - Asynchronous stream execution with CUDA events for CPU/GPU overlap
 
----
-
-## Testing
-
-A test script is provided for the query tool:
-
-```bash
-chmod +x test-query-device-property.sh
-./test-query-device-property.sh
-```
-
-This script will:
-1. Compile the query-device-property program
-2. Run multiple test cases to verify functionality
-3. Display results for various property queries
-
----
-
-## Requirements
-
-- **CUDA Toolkit**: Version 11.0 or higher recommended
-- **GPU**: NVIDIA GPU with compute capability 3.5 or higher
-  - Note: Thread cluster example requires compute capability 9.0+
-- **Compiler**: `nvcc` (NVIDIA CUDA Compiler)
-
-## Common Issues
-
-1. **Compilation errors about `__cluster_dims__`**: Your GPU architecture doesn't support thread clusters. This is expected for GPUs older than Hopper (compute capability < 9.0).
-
-2. **No CUDA-capable devices found**: Ensure NVIDIA drivers are properly installed and your GPU is recognized by the system.
-
-3. **Runtime errors**: Check that CUDA Toolkit version matches your driver version using `nvidia-smi`.
+For detailed descriptions, compilation instructions, and usage examples, see [FILES.md](FILES.md).
 
 ## Important CUDA Tips
 
-### Debugging with CUDA_LOG_FILE
+### 1) Debugging with CUDA_LOG_FILE
 
 The `CUDA_LOG_FILE` environment variable redirects CUDA driver errors and warnings to a specified file, making it easier to debug kernel launch errors and other runtime issues without cluttering your terminal output.
 
@@ -90,7 +59,7 @@ This is particularly useful for:
 - Capturing error logs from long-running programs
 - Analyzing intermittent issues that are hard to reproduce
 
-### Analyzing Kernel Resource Usage with -res-usage
+### 2) Analyzing Kernel Resource Usage with -res-usage
 
 The `-res-usage` flag in `nvcc` provides detailed information about resource consumption for each kernel during compilation. This helps optimize kernel performance by understanding register usage, memory requirements, and potential bottlenecks.
 
@@ -178,7 +147,7 @@ ptxas info    : Compile time = 0.476 ms
 - Consider breaking up complex kernels if register count is too high
 - Use `__launch_bounds__` to control register allocation
 
-### Understanding CUDA Compilation Pipeline
+### 3) Understanding CUDA Compilation Pipeline
 
 The `nvcc` compiler uses the `-time` flag to generate detailed timing information about each compilation phase, revealing the complex multi-stage process that transforms CUDA source code into an executable.
 
