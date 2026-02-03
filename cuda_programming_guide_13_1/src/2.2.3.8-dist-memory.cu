@@ -6,7 +6,7 @@
 
 #include <cuda_runtime.h>
 #include <cstdio>
-#include "cuda_utils.h"
+#include "cuda_utils.cuh"
 
 
 #include <cooperative_groups.h>

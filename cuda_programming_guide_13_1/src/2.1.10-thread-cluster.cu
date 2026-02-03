@@ -2,7 +2,7 @@
 #include <cuda_runtime.h>
 #include <cstdio>
 #include <cooperative_groups.h>
-#include "cuda_utils.h"
+#include "cuda_utils.cuh"
 
 
 // Kernel definition

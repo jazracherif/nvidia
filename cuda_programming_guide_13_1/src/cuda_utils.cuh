@@ -1,5 +1,5 @@
-#ifndef CUDA_UTILS_H
-#define CUDA_UTILS_H
+#ifndef CUDA_UTILS_CUH
+#define CUDA_UTILS_CUH
 
 #include <cuda_runtime.h>
 #include <stdio.h>
@@ -29,4 +29,4 @@
     }                                             \
 } while(0)
 
-#endif // CUDA_UTILS_H
+#endif // CUDA_UTILS_CUH

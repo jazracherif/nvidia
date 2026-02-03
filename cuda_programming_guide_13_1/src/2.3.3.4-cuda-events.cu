@@ -1,7 +1,7 @@
 #include <cuda_runtime.h>
 #include <cuda/cmath>
 #include <unistd.h>
-#include "cuda_utils.h"
+#include "cuda_utils.cuh"
 
 __global__ void vecInit(float* A, int value, int vectorLength)
 {

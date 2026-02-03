@@ -1,5 +1,5 @@
 
-#include "cuda_utils.h"
+#include "cuda_utils.cuh"
 
 __global__ void primary_kernel() {
     // Initial work that should finish before starting secondary kernel

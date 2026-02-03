@@ -2,7 +2,7 @@
 #include <cuda/cmath>
 #include <cstdio>
 #include <cstdlib>
-#include "cuda_utils.h"
+#include "cuda_utils.cuh"
 
 
 __global__ void vecAdd(float* A, float* B, float* C, int vectorLength)
