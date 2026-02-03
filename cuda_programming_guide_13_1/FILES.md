@@ -192,9 +192,45 @@ work_left 0
 
 **Profile with Nsight Systems:**
 ```bash
-nsys profile -o 2.3.3.4-cuda-events ./bin/2.3.3.4-cuda-events
+nsys profile -o reports/2.3.3.4-cuda-events ./bin/2.3.3.4-cuda-events
 ```
 The timeline will show stream1 and stream2 executing concurrently, with the memory copy starting before all compute kernels finish.
+
+**Nsight Systems Timeline Analysis:**
+
+![Nsight Systems Timeline showing CUDA events and async streams](assets/2.3.3.4-cuda-events-nsight-rep.png)
+
+The Nsight Systems profile captures the execution behavior described above:
+
+**Timeline Overview:**
+- **CUDA HW (Kernel Memory)**: Shows actual kernel execution on the GPU hardware
+  - `vecInit(float*)` kernels execute on the GPU
+  - `vecInitRando` (vecInitRandom) follows
+  - `computeIntensiveKernel(float*, int)` performs heavy computation
+  - `Memcpy DtoH` (Device-to-Host) transfers data asynchronously
+
+**Stream Activity:**
+- **Stream 13 (94.6%)**: Primary compute stream executing initialization and compute kernels
+- **Stream 14 (5.4%)**: Secondary stream handling asynchronous memory copy operations
+
+**CUDA API Calls:**
+The CUDA API row shows the host-side calls in sequence:
+- `vecInit`: Launches the initialization kernel
+- `cudaEventRecord`: Records the event immediately after `vecInit` launch
+- `vecInitRa...`: Launches `vecInitRandom` kernel
+- `compu...`: Launches `computeIntensiveKernel`
+- `cudaMemc...`: Initiates the asynchronous memory copy on stream2
+
+**Key Observations:**
+1. **Event-Based Synchronization**: The `cudaEventRecord` call (shown in green) occurs immediately after the first `vecInit` launch, allowing the CPU to query completion status without blocking.
+
+2. **Async Memory Copy on Different Stream**: The `cudaMemc...` operation (shown in red) executes on a separate stream (Stream 14), demonstrating true asynchronous behavior where data transfer happens independently from ongoing compute operations on Stream 13.
+
+3. **CPU/GPU Overlap**: The OS runtime libraries row shows `sleep` periods, indicating the CPU is free to perform other work while GPU operations execute. The `poll` operations represent the non-blocking event queries checking if `vecInit` has completed.
+
+4. **Concurrent Execution**: Multiple kernel executions overlap on the timeline, and the memory copy starts before all compute kernels finish, exactly as intended by the program design.
+
+This visualization confirms the effectiveness of using CUDA events for fine-grained stream coordination and achieving efficient CPU/GPU overlap without blocking synchronization.
 
 ---
 

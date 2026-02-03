@@ -6,19 +6,7 @@
 
 #include <cuda_runtime.h>
 #include <cstdio>
-
-#define CUDA_CHECK(expr_to_check) do {            \
-    cudaError_t result  = expr_to_check;          \
-    if(result != cudaSuccess)                     \
-    {                                             \
-        fprintf(stderr,                           \
-                "CUDA Runtime Error: %s:%i:%d = %s\n", \
-                __FILE__,                         \
-                __LINE__,                         \
-                result,\
-                cudaGetErrorString(result));      \
-    }                                             \
-} while(0)
+#include "cuda_utils.h"
 
 
 #include <cooperative_groups.h>
@@ -92,12 +80,12 @@ int main(int argc, char* argv[])
   int N = 1024;
   int nbins = 10;
 
-  float* input = nullptr;
+  int* input = nullptr;
   int* bins = nullptr;
 
   // Use unified memory to allocate buffers
-  cudaMallocManaged(&input, N*sizeof(float));
-  cudaMallocManaged(&bins, nbins*sizeof(int));
+  CUDA_CHECK(cudaMallocManaged(&input, N*sizeof(int)));
+  CUDA_CHECK(cudaMallocManaged(&bins, nbins*sizeof(int)));
 
 
   cudaLaunchConfig_t config = {0};
@@ -124,8 +112,8 @@ int main(int argc, char* argv[])
   config.numAttrs = 1;
   config.attrs = attribute;
 
-  cudaLaunchKernelEx(&config, clusterHist_kernel, bins, nbins, nbins_per_block, input, N);
+  CUDA_CHECK(cudaLaunchKernelEx(&config, clusterHist_kernel, bins, nbins, nbins_per_block, input, N));
 
-  cudaFree(input);
-  cudaFree(bins);
+  CUDA_CHECK(cudaFree(input));
+  CUDA_CHECK(cudaFree(bins));
 }

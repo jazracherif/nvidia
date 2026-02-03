@@ -1,20 +1,7 @@
 #include <cuda_runtime.h>
 #include <cuda/cmath>
 #include <unistd.h>
-
-
-#define CUDA_CHECK(expr_to_check) do {            \
-    cudaError_t result  = expr_to_check;          \
-    if(result != cudaSuccess)                     \
-    {                                             \
-        fprintf(stderr,                           \
-                "CUDA Runtime Error: %s:%i:%d = %s\n", \
-                __FILE__,                         \
-                __LINE__,                         \
-                result,\
-                cudaGetErrorString(result));      \
-    }                                             \
-} while(0)
+#include "cuda_utils.h"
 
 __global__ void vecInit(float* A, int value, int vectorLength)
 {

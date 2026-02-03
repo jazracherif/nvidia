@@ -2,19 +2,7 @@
 #include <cuda/cmath>
 #include <cstdio>
 #include <cstdlib>
-
-#define CUDA_CHECK(expr_to_check) do {            \
-    cudaError_t result  = expr_to_check;          \
-    if(result != cudaSuccess)                     \
-    {                                             \
-        fprintf(stderr,                           \
-                "CUDA Runtime Error: %s:%i:%d = %s\n", \
-                __FILE__,                         \
-                __LINE__,                         \
-                result,\
-                cudaGetErrorString(result));      \
-    }                                             \
-} while(0)
+#include "cuda_utils.h"
 
 
 __global__ void vecAdd(float* A, float* B, float* C, int vectorLength)
@@ -59,9 +47,9 @@ void unifiedMemExample(int vectorLength)
     float* comparisonResult = (float*)malloc(vectorLength*sizeof(float));
 
     // Use unified memory to allocate buffers
-    cudaMallocManaged(&A, vectorLength*sizeof(float));
-    cudaMallocManaged(&B, vectorLength*sizeof(float));
-    cudaMallocManaged(&C, vectorLength*sizeof(float));
+    CUDA_CHECK(cudaMallocManaged(&A, vectorLength*sizeof(float)));
+    CUDA_CHECK(cudaMallocManaged(&B, vectorLength*sizeof(float)));
+    CUDA_CHECK(cudaMallocManaged(&C, vectorLength*sizeof(float)));
 
     // Initialize vectors on the host
     initArray(A, vectorLength);
@@ -72,8 +60,9 @@ void unifiedMemExample(int vectorLength)
     int threads = 256;
     int blocks = cuda::ceil_div(vectorLength, threads);
     vecAdd<<<blocks, threads>>>(A, B, C, vectorLength);
+    CUDA_CHECK(cudaGetLastError());
     // Wait for the kernel to complete execution
-    cudaDeviceSynchronize();
+    CUDA_CHECK(cudaDeviceSynchronize());
 
     // Perform computation serially on CPU for comparison
     serialVecAdd(A, B, comparisonResult, vectorLength);
@@ -88,9 +77,9 @@ void unifiedMemExample(int vectorLength)
         printf("Unified Memory: Error - CPU and GPU answers do not match\n");
     }
 
-    // Clean Up
-    cudaFree(A);
-    cudaFree(B);
+    CUDA_CHECK(cudaFree(A));
+    CUDA_CHECK(cudaFree(B));
+    CUDA_CHECK(cudaFree(C));
     cudaFree(C);
     free(comparisonResult);
 

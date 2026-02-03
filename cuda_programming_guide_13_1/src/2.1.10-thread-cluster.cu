@@ -2,19 +2,7 @@
 #include <cuda_runtime.h>
 #include <cstdio>
 #include <cooperative_groups.h>
-
-#define CUDA_CHECK(expr_to_check) do {            \
-    cudaError_t result  = expr_to_check;          \
-    if(result != cudaSuccess)                     \
-    {                                             \
-        fprintf(stderr,                           \
-                "CUDA Runtime Error: %s:%i:%d = %s\n", \
-                __FILE__,                         \
-                __LINE__,                         \
-                result,\
-                cudaGetErrorString(result));      \
-    }                                             \
-} while(0)
+#include "cuda_utils.h"
 
 
 // Kernel definition
@@ -63,6 +51,8 @@ int main(int argc, char* argv[])
   // using number of blocks.
   // The grid dimension must be a multiple of cluster size.
   cluster_kernel_increment<<<numBlocks, threadsPerBlock>>>(A, N);
+  CUDA_CHECK(cudaGetLastError());
   CUDA_CHECK(cudaDeviceSynchronize());
 
+  CUDA_CHECK(cudaFree(A));
 }
