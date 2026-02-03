@@ -10,7 +10,7 @@ This document contains examples from Section 3 of the [CUDA Programming Guide v1
 
 ## 3.1.4 Programmatic Dependent Launch (`pdl.cu`)
 
-**Reference**: [CUDA Programming Guide Section 3.1.4 - Programmatic Dependent Launch and Synchronization](https://docs.nvidia.com/cuda/cuda-programming-guide/03-advanced/advanced-host-programming.html#programmatic-dependent-kernel-launch)
+**Reference**: [CUDA Programming Guide Section 3.1.4 - Programmatic Dependent Kernel Launch](https://docs.nvidia.com/cuda/cuda-programming-guide/03-advanced/advanced-host-programming.html#programmatic-dependent-kernel-launch)
 
 **File**: [src/3.1.4-pdl.cu](src/3.1.4-pdl.cu)
 

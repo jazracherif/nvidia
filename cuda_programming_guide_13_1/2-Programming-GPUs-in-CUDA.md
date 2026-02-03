@@ -13,7 +13,7 @@ This document contains examples from Section 2 of the [CUDA Programming Guide v1
 
 ## 2.1.3 Memory Management (`memory-vecAdd.cu`)
 
-**Reference**: [CUDA Programming Guide Section 2.1.3 - Heterogeneous Programming](https://docs.nvidia.com/cuda/cuda-programming-guide/02-basics/intro-to-cuda-cpp.html#memory-in-gpu-computing)
+**Reference**: [CUDA Programming Guide Section 2.1.3 - Memory in GPU Computing Programming](https://docs.nvidia.com/cuda/cuda-programming-guide/02-basics/intro-to-cuda-cpp.html#memory-in-gpu-computing)
 
 **File**: [src/2.1.3-memory-vecAdd.cu](src/2.1.3-memory-vecAdd.cu)
 
@@ -102,7 +102,7 @@ nvcc -O2 -arch=native -o bin/dist-memory src/2.2.3.8-dist-memory.cu
 
 ## 2.3.3.4 Asynchronous Concurrent Execution (`cuda-events.cu`)
 
-**Reference**: [CUDA Programming Guide Section 2.3.3.4 - Events](https://docs.nvidia.com/cuda/cuda-programming-guide/02-basics/asynchronous-execution.html#stream-synchronization)
+**Reference**: [CUDA Programming Guide Section 2.3.3 - Cuda Events](https://docs.nvidia.com/cuda/cuda-programming-guide/02-basics/asynchronous-execution.html#cuda-events)
 
 **File**: [src/2.3.3.4-cuda-events.cu](src/2.3.3.4-cuda-events.cu)
 
