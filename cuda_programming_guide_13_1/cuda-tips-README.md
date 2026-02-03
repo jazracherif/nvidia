@@ -6,6 +6,8 @@ A collection of useful tips and techniques for CUDA development, debugging, and 
 
 The `CUDA_LOG_FILE` environment variable redirects CUDA driver errors and warnings to a specified file, making it easier to debug kernel launch errors and other runtime issues without cluttering your terminal output.
 
+**Official Documentation:** [CUDA_LOG_FILE Environment Variable](https://docs.nvidia.com/cuda/cuda-programming-guide/05-appendices/environment-variables.html#cuda-log-file)
+
 **Description:**
 When CUDA encounters runtime errors (such as invalid kernel launch parameters, memory access violations, or API errors), the driver can log detailed diagnostic information. By setting `CUDA_LOG_FILE`, you capture these messages in a file for later analysis.
 
