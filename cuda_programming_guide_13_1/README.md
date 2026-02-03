@@ -6,21 +6,20 @@ NOTE: The code, test, and readme are in part or in whole create with support fro
 
 ## Table of Contents
 
-- [Files Overview](#files-overview)
+- [Repo Overview](#repo-overview)
 - [Important CUDA Tips](#important-cuda-tips)
   - [1) Debugging with CUDA_LOG_FILE](#1-debugging-with-cuda_log_file)
   - [2) Analyzing Kernel Resource Usage with -res-usage](#2-analyzing-kernel-resource-usage-with--res-usage)
   - [3) Understanding CUDA Compilation Pipeline](#3-understanding-cuda-compilation-pipeline)
 - [Additional Resources](#additional-resources)
 
-## Files Overview
+## Repo Overview
 
-- [2.1.3-memory-vecAdd.cu](src/2.1.3-memory-vecAdd.cu) - Vector addition demonstrating unified and explicit memory management
-- [2.1.10-thread-cluster.cu](src/2.1.10-thread-cluster.cu) - Thread cluster programming for compute capability 9.0+ GPUs
-- [query-device-property.cu](src/query-device-property.cu) - Utility to query GPU device properties (shared memory, etc.)
-- [2.3.3.4-cuda-events.cu](src/2.3.3.4-cuda-events.cu) - Asynchronous stream execution with CUDA events for CPU/GPU overlap
+This project is an attempt to better understand the CUDA programming model by diving deep into the [NVIDIA CUDA Programming Guide v13.1](https://docs.nvidia.com/cuda/cuda-programming-guide/index.html) documentation and testing various features through hands-on code implementation and debugging. Each example corresponds to specific sections of the Programming Guide, allowing for practical exploration of CUDA concepts from basic memory management to advanced performance optimization techniques.
 
-For detailed descriptions, compilation instructions, and usage examples, see [FILES.md](FILES.md).
+The examples are tested, profiled with tools like Nsight Systems, and documented with insights gained through experimentation and debugging sessions.
+
+For detailed descriptions, compilation instructions, and section references, see **[GUIDE.md](GUIDE.md)**.
 
 ## Important CUDA Tips
 
