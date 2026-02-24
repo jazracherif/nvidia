@@ -1,0 +1,476 @@
+gpus:
+
+  GB10:
+    name: NVIDIA GB10 (DGX Spark)
+    references:
+      - name: NVIDIA DGX Spark GB10
+        url: https://www.nvidia.com/en-us/products/workstations/dgx-spark/
+      - name: DGX Spark GB10 Datasheet
+        url: https://nvdam.widen.net/s/tlzm8smqjx/workstation-datasheet-dgx-spark-gtc25-spring-nvidia-us-3716899-web/
+
+    core_specifications:
+      release_date: Q4 2025
+      architecture: Blackwell
+      compute_capability: 12.1
+      gpu_count: 1
+      cpu: "1x Grace CPU (20-core Arm Neoverse V2)"
+      streaming_multiprocessors: 48
+      cuda_cores: ~10240
+      max_clock_speed: 3003 MHz
+      form_factor: Desktop / workstation APU
+
+    sm_execution_model:
+      shared_memory_per_sm: 100 KB
+      shared_memory_per_block: 99 KB
+      max_resident_threads_per_sm: 1536
+      max_resident_blocks_per_sm: 24
+
+    memory_specifications:
+      total_memory: 128 GB LPDDR5x
+      memory_type: LPDDR5x (shared with Grace CPU)
+      gpu_memory: 128 GB (unified with CPU)
+      cpu_memory: 128 GB (unified with GPU)
+      l2_cache: 24 MB
+      l2_cache_max: 128 MB
+      # ~301 GB/s cited in GB200 comparison; ~273 GB/s cited in T4 comparison (different measurement contexts)
+      # CPU and GPU share the same LPDDR5x pool — bandwidth is not additive
+      memory_bandwidth_gpu: ~273–301 GB/s
+      memory_bandwidth_cpu: "Shared with GPU (same LPDDR5x pool)"
+      memory_bus_width: "256-bit (unified with Grace CPU)"
+      ecc_support: true
+      memory_architecture: Unified with Grace CPU
+      addressing_mode: ATS (Address Translation Services)
+      pageable_memory_access_via_host_page_tables: true
+      concurrent_managed_access: true
+      cpu_gpu_transfer: Zero-copy (unified memory via ATS)
+      pcie_generation: Gen 5 (64 GB/s per direction)
+
+    compute_performance:
+      fp4: ~1.28 PFLOPS
+      fp8_fp6: ~640 TFLOPS
+      fp16_bf16: ~320 TFLOPS (Tensor Cores)
+      tf32: ~160 TFLOPS
+      fp32: ~40 TFLOPS
+      fp64: ~20 TFLOPS
+      int8: ~640 TOPS
+      tensor_core_generation: "5th Gen (Blackwell)"
+      fp4_fp6_tensor_core_support: true
+      rt_cores: "3rd Gen (48 cores)"
+
+    power_and_thermal:
+      total_system_tdp: 140 W
+      gpu_tdp: ~100 W (estimated)
+      idle_power: ~4.6 W
+      form_factor: Compact APU (Desktop)
+      cooling: Active air cooling
+      power_efficiency_fp16: ~229 GFLOPS/W
+      power_connector: System power
+
+    advanced_features:
+      mig: "Yes (up to 7 instances)"
+      nvlink: NVLink 5.0 (optional)
+      dynamic_programming: Full support
+      thread_block_clusters: true
+      tensor_memory_accelerator: true
+      hardware_coherency: "Yes (ATS/PASID support)"
+      transformer_engine: "Yes (FP8 optimized)"
+      distributed_shared_memory: true
+      ray_tracing: "3rd Gen RT Cores"
+      dlss: "4.0"
+      unified_memory: Hardware-coherent (ATS)
+      confidential_computing: Limited
+      atomic_caps_outbound: [FETCHADD_64, CAS_64]
+
+    networking_and_connectivity:
+      pcie_interface: PCIe 5.0 x16
+      high_speed_interconnect: "ConnectX-7 (200 Gb/s InfiniBand / Ethernet)"
+      multi_node_clustering: "Native support via ConnectX-7"
+      nvlink_fabric: Optional
+      nvswitch: Not included
+      rdma: "Integrated with ConnectX-7"
+      gpu_to_gpu_direct: "Yes (GPUDirect RDMA)"
+      sharp: true
+
+    software_and_ecosystem:
+      cuda_toolkit: "13.0+"
+      minimum_driver: "570.00+"
+      cublas: cuBLAS 13.x with FP8
+      cudnn: "9.x"
+      tensorrt: "11.x+ (FP8 support)"
+      nccl: "2.28+"
+      pytorch: "2.x+ (Arm + CUDA)"
+      tensorflow: "2.x+"
+
+  NVL72_GB200:
+    name: NVIDIA GB200 NVL72
+    references:
+      - name: NVIDIA GB200 NVL72
+        url: https://www.nvidia.com/en-us/data-center/gb200-nvl72/
+
+    core_specifications:
+      release_date: Q1 2025
+      architecture: Blackwell
+      compute_capability: 10.0
+      gpu_count: 72
+      cpu: "36x Grace CPUs (72-core Arm Neoverse V2 each = 2592 total cores)"
+      streaming_multiprocessors: "~10368 (144 per GPU × 72)"
+      cuda_cores: "~2654208 (36864 per GPU × 72)"
+      max_clock_speed: ~2800 MHz
+      form_factor: Liquid-cooled rack (9 chassis)
+
+    sm_execution_model:
+      shared_memory_per_sm: 228 KB
+      shared_memory_per_block: 227 KB
+      max_resident_threads_per_sm: 2048
+      max_resident_blocks_per_sm: 32
+
+    memory_specifications:
+      total_fast_memory: "31 TB (HBM3e + LPDDR5x)"
+      gpu_memory: "13.4 TB HBM3e (186 GB per GPU × 72)"
+      gpu_memory_per_gpu: "186 GB HBM3e"
+      cpu_memory: "~17.6 TB LPDDR5x (489 GB per CPU × 36)"
+      l2_cache: "6912 MB (96 MB per GPU × 72)"
+      l2_cache_max_per_gpu: 256 MB
+      memory_bandwidth_gpu: "576 TB/s (8 TB/s per GPU × 72)"
+      memory_bandwidth_per_gpu: 8 TB/s
+      memory_bandwidth_cpu: "~4.7 TB/s aggregate"
+      nvlink_domain_bandwidth: "130 TB/s (all-to-all across 72 GPUs)"
+      memory_bus_width_per_gpu: 6144-bit
+      ecc_support: true
+      memory_architecture: "Unified within superchips + NVLink domain"
+      addressing_mode: ATS (Address Translation Services)
+      pageable_memory_access_via_host_page_tables: true
+      concurrent_managed_access: true
+
+    compute_performance:
+      fp4: "1440 PFLOPS (1.44 exaFLOPS)"
+      fp8_fp6: 720 PFLOPS
+      fp16_bf16: "360 PFLOPS (5 PFLOPS per GPU × 72)"
+      tf32: "180 PFLOPS (2.5 PFLOPS per GPU × 72)"
+      fp32: "5.76 PFLOPS (80 TFLOPS per GPU × 72)"
+      fp64: "2.88 PFLOPS (40 TFLOPS per GPU × 72)"
+      int8: "720 POPS (10 POPS per GPU × 72)"
+      tensor_core_generation: "5th Gen (Blackwell)"
+      fp4_fp6_tensor_core_support: true
+
+    power_and_thermal:
+      total_rack_tdp: ~132 kW
+      max_configurable_tdp_per_component: 1200 W
+      idle_power: ~2000 W (estimated)
+      form_factor: Liquid-cooled rack (9 chassis)
+      cooling: Direct liquid cooling required
+      power_efficiency_fp16: "~273 GFLOPS/W (360 PFLOPS / 132 kW)"
+      power_distribution: Three-phase datacenter power
+
+    advanced_features:
+      mig: "Yes (up to 7 instances per GPU)"
+      mig_instances_per_gpu: 7
+      nvlink: "NVLink 5.0 (130 TB/s domain bandwidth)"
+      nvswitch_count: 18
+      nvswitch_integration: "18 NVSwitches (fully-connected GPU topology)"
+      nvdec_per_gpu: 7
+      nvjpeg_per_gpu: 7
+      dynamic_programming: Full support
+      thread_block_clusters: true
+      tensor_memory_accelerator: true
+      hardware_coherency: "Yes (ATS/PASID support)"
+      transformer_engine: "Yes (FP8 + FP4 optimized)"
+      distributed_shared_memory: true
+      confidential_computing: "Full support with TEE"
+
+    networking_and_connectivity:
+      high_speed_interconnect: "ConnectX-8 (400 Gb/s InfiniBand / 800 Gb/s Ethernet)"
+      nic_count: 36
+      nvlink_fabric: "130 TB/s internal NVLink domain"
+      nvswitch: "18 NVSwitches (full GPU interconnect)"
+      rdma: "Integrated with ConnectX-8"
+      gpu_to_gpu_direct: "Yes (GPUDirect RDMA + NVLink)"
+      sharp: "Yes (enhanced)"
+      scale: 72 GPUs in unified fabric
+
+    software_and_ecosystem:
+      cuda_toolkit: "13.0+"
+      minimum_driver: "570.00+"
+      cublas: cuBLAS 13.x with FP8
+      cudnn: "9.x (optimized for large scale)"
+      tensorrt: "11.x+ (FP8 support)"
+      nccl: "2.28+ (NVLink topology-aware)"
+      nemo_framework: Optimized for NVL72
+      megatron_lm: Primary target platform
+
+
+  RTX5070:
+    name: NVIDIA GeForce RTX 5070
+    references:
+      - name: NVIDIA GeForce RTX 5070
+        url: https://www.nvidia.com/en-us/geforce/graphics-cards/compare/#50-series
+
+    core_specifications:
+      release_date: Q1 2025
+      architecture: Blackwell
+      compute_capability: 12.1
+      gpu_count: 1
+      cpu: "Host CPU (user-supplied)"
+      streaming_multiprocessors: 48
+      cuda_cores: ~10240
+      max_clock_speed: 2640 MHz
+      form_factor: Discrete PCIe card (dual-slot)
+
+    sm_execution_model:
+      shared_memory_per_sm: 100 KB
+      shared_memory_per_block: 99 KB
+      max_resident_threads_per_sm: 1536
+      max_resident_blocks_per_sm: 24
+
+    memory_specifications:
+      total_memory: 12 GB GDDR7
+      memory_type: GDDR7 (dedicated)
+      l2_cache: 48 MB
+      l2_cache_type: GPU-exclusive
+      memory_bandwidth_gpu: 560 GB/s
+      memory_bandwidth_cpu: "Host-dependent (PCIe 5.0 ~128 GB/s bi-directional CPU↔GPU transfer)"
+      memory_bus_width: 192-bit
+      ecc_support: false
+      memory_architecture: Discrete GPU memory
+      addressing_mode: Standard PCIe
+      pageable_memory_access_via_host_page_tables: false
+      concurrent_managed_access: true
+      cpu_gpu_transfer: "PCIe 5.0 (~128 GB/s bi-directional)"
+
+    compute_performance:
+      fp4: ~1.28 PFLOPS
+      fp8_fp6: ~640 TFLOPS
+      fp16_bf16: ~320 TFLOPS (Tensor Cores)
+      tf32: ~160 TFLOPS
+      fp32: ~40 TFLOPS
+      fp64: ~20 TFLOPS
+      int8: ~640 TOPS
+      tensor_core_generation: "5th Gen (Blackwell)"
+      fp4_fp6_tensor_core_support: true
+      rt_cores: "3rd Gen (48 cores)"
+
+    power_and_thermal:
+      gpu_tdp: 220 W
+      idle_power: ~15 W
+      form_factor: Dual-slot PCIe card
+      cooling: Active air cooling (dual/triple fan)
+      power_efficiency_fp16_gpu_only: ~145 GFLOPS/W
+      power_connector: "PCIe 5.0 (12VHPWR, 16-pin)"
+
+    advanced_features:
+      mig: false
+      nvlink: false
+      dynamic_programming: Full support
+      thread_block_clusters: true
+      tensor_memory_accelerator: true
+      hardware_coherency: false
+      transformer_engine: "Yes (FP8 optimized)"
+      distributed_shared_memory: true
+      ray_tracing: "3rd Gen RT Cores (gaming-optimized)"
+      dlss: "4.0 (gaming-focused, multi-frame generation)"
+      unified_memory: "Software-managed (CUDA UVM)"
+      display_outputs: "4x DisplayPort 2.1, 1x HDMI 2.1"
+      atomic_caps_outbound: Standard
+
+    networking_and_connectivity:
+      pcie_interface: PCIe 5.0 x16
+      high_speed_interconnect: None (relies on host system)
+      multi_gpu: "NVLink (not typically available)"
+      rdma: Not available
+      gpu_to_gpu_direct: Via host CPU
+
+    software_and_ecosystem:
+      cuda_toolkit: "13.0+"
+      minimum_driver: "570.00+"
+      cublas: cuBLAS 13.x with FP8
+      cudnn: "9.x"
+      tensorrt: "11.x+ (FP8 support)"
+      pytorch: "2.x+"
+      tensorflow: "2.x+"
+      gaming_apis: "DirectX 12 Ultimate, Vulkan"
+      geforce_experience: true
+      studio_drivers: true
+
+  T4:
+    name: NVIDIA Tesla T4
+    references:
+      - name: NVIDIA Tesla T4
+        url: https://www.nvidia.com/en-us/data-center/tesla-t4/
+      - name: Tesla T4 Datasheet
+        url: https://www.nvidia.com/content/dam/en-zz/Solutions/Data-Center/tesla-t4/t4-tensor-core-datasheet-951643.pdf
+
+    core_specifications:
+      release_date: September 2018
+      architecture: Turing
+      compute_capability: 7.5
+      gpu_count: 1
+      streaming_multiprocessors: 40
+      cuda_cores: 2560
+      max_clock_speed: 1590 MHz
+      form_factor: Single-slot, low-profile
+
+    sm_execution_model:
+      shared_memory_per_sm: 64 KB
+
+    memory_specifications:
+      total_memory: 16 GB GDDR6
+      memory_type: GDDR6 (dedicated)
+      l2_cache: 4 MB
+      memory_bandwidth_gpu: 320 GB/s
+      memory_bandwidth_cpu: "Host-dependent (PCIe 3.0 ~16 GB/s per direction CPU↔GPU transfer)"
+      memory_bus_width: 256-bit
+      ecc_support: true
+      memory_architecture: Discrete GPU memory
+      # Supports concurrent managed access but lacks hardware-level pageable memory access
+      addressing_mode: Standard
+      concurrent_managed_access: true
+      hardware_pageable_memory_access: false
+      pcie_generation: Gen 3 (16 GB/s per direction)
+
+    compute_performance:
+      fp32: 8.1 TFLOPS
+      fp16: "65 TFLOPS (Tensor Cores)"
+      bf16: Not supported
+      fp8: Not supported
+      fp6: Not supported
+      fp4: Not supported
+      int8: 130 TOPS
+      tensor_core_generation: "2nd Gen (Turing)"
+      cuda_cores: 2560
+
+    power_and_thermal:
+      tdp: 70 W
+      idle_power: ~9.2 W
+      form_factor: Single-slot, low-profile
+      cooling: Passive capable
+      power_efficiency_fp16: "~116 GFLOPS/W (65 TFLOPS / ~560W system)"
+
+    advanced_features:
+      mig: false
+      nvlink: false
+      dynamic_programming: Limited
+      thread_block_clusters: false
+      tensor_memory_accelerator: false
+      hardware_coherency: false
+      transformer_engine: false
+      distributed_shared_memory: false
+      atomic_caps_outbound: Limited
+      fp4_support: false
+      fp6_support: false
+      fp8_support: false
+
+    networking_and_connectivity:
+      high_speed_interconnect: "Not supported (relies on host PCIe/network)"
+      multi_node_clustering: "Limited (via PCIe/network only)"
+      rdma: Via external NICs
+      gpu_to_gpu_direct: false
+
+    software_and_ecosystem:
+      cuda_toolkit: "10.0 – 12.x"
+      minimum_driver: "410.48+"
+      cublas: Standard
+      cudnn: "7.x – 8.x"
+      tensorrt: "5.x – 10.x"
+      nccl: "2.x"
+
+  H100:
+    name: NVIDIA H100 Tensor Core GPU
+    references:
+      - name: NVIDIA H100 GPU Whitepaper
+        url: https://resources.nvidia.com/en-us-hopper-architecture/nvidia-h100-tensor-c?ncid=no-ncid
+      - name: NVIDIA H100 GPU Datasheet
+        url: https://resources.nvidia.com/en-us-hopper-architecture/nvidia-tensor-core-gpu-datasheet?ncid=no-ncid
+      - name: NVIDIA H100 Product Page
+        url: https://www.nvidia.com/en-us/data-center/h100/
+
+    # Two variants ship: SXM5 (high-density 8-GPU server boards) and PCIe (NVL dual-slot card).
+    # Specs below note variant differences where they exist; SXM5 is the primary datacenter form factor.
+
+    core_specifications:
+      release_date: March 2023
+      architecture: Hopper (GH100)
+      compute_capability: 9.0
+      gpu_count: 1
+      cpu: "Host CPU (user-supplied)"
+      streaming_multiprocessors: "132 (SXM5) / 114 (PCIe)"
+      cuda_cores: "16896 (SXM5, 128 per SM × 132) / 14592 (PCIe)"
+      max_clock_speed: "~1830 MHz boost (SXM5)"
+      form_factor: "SXM5 board (server) / PCIe dual-slot air-cooled card"
+
+    sm_execution_model:
+      shared_memory_per_sm: 228 KB
+      shared_memory_per_block: 227 KB
+      max_resident_threads_per_sm: 2048
+      max_resident_blocks_per_sm: 32
+
+    memory_specifications:
+      # SXM5 uses HBM3; PCIe / NVL uses HBM2e
+      total_memory: "80 GB HBM3 (SXM5) / 94 GB HBM2e per card (NVL PCIe)"
+      memory_type: "HBM3 (SXM5) / HBM2e (PCIe/NVL)"
+      l2_cache: 50 MB
+      memory_bandwidth_gpu: "3.35 TB/s (SXM5) / 3.9 TB/s (NVL PCIe)"
+      memory_bandwidth_cpu: "Host-dependent (PCIe Gen 5 ~128 GB/s bi-directional CPU↔GPU transfer)"
+      memory_bus_width: "5120-bit (SXM5) / 5120-bit (PCIe)"
+      ecc_support: true
+      memory_architecture: Discrete HBM GPU memory
+      addressing_mode: Standard (PCIe) / NVLink fabric (SXM5 in HGX/DGX)
+      pageable_memory_access_via_host_page_tables: false
+      concurrent_managed_access: true
+      pcie_generation: Gen 5 (128 GB/s bi-directional)
+
+    compute_performance:
+      # * = with sparsity
+      fp64: "34 TFLOPS (SXM5) / 30 TFLOPS (PCIe)"
+      fp64_tensor_core: "67 TFLOPS (SXM5) / 60 TFLOPS (PCIe)"
+      fp32: "67 TFLOPS (SXM5) / 60 TFLOPS (PCIe)"
+      tf32_tensor_core: "989 TFLOPS* (SXM5) / 835 TFLOPS* (PCIe)"
+      fp16_bf16_tensor_core: "1979 TFLOPS* (SXM5) / 1671 TFLOPS* (PCIe)"
+      fp8_tensor_core: "3958 TFLOPS* (SXM5) / 3341 TFLOPS* (PCIe)"
+      int8_tensor_core: "3958 TOPS* (SXM5) / 3341 TOPS* (PCIe)"
+      fp4: Not supported
+      fp6: Not supported
+      tensor_core_generation: "4th Gen (Hopper)"
+      fp8_support: true
+      fp4_fp6_tensor_core_support: false
+
+    power_and_thermal:
+      tdp: "Up to 700 W configurable (SXM5) / 350–400 W configurable (PCIe/NVL)"
+      form_factor: "SXM5 server board / PCIe dual-slot air-cooled"
+      cooling: "Liquid-cooled (SXM5 in HGX/DGX) / Air-cooled (PCIe)"
+      power_efficiency_fp16: "~141 GFLOPS/W (SXM5, 989 TFLOPS TF32 / 700 W)"
+
+    advanced_features:
+      mig: "Yes (up to 7 instances — 10 GB each on SXM5 / 12 GB each on PCIe NVL)"
+      mig_instances_per_gpu: 7
+      nvlink: "4th Gen NVLink — 900 GB/s (SXM5) / 600 GB/s (PCIe)"
+      nvswitch: "Via HGX/DGX board (NVSwitch 3.0) — not on standalone PCIe card"
+      nvdec_per_gpu: 7
+      nvjpeg_per_gpu: 7
+      dynamic_programming: Full support
+      thread_block_clusters: true
+      tensor_memory_accelerator: true
+      hardware_coherency: false
+      transformer_engine: "Yes (FP8 optimized — first generation)"
+      distributed_shared_memory: true
+      confidential_computing: "Full support with TEE (first GPU with hardware TEE)"
+      dpx_instructions: "Yes (7× faster dynamic programming vs A100)"
+      atomic_caps_outbound: Standard
+
+    networking_and_connectivity:
+      pcie_interface: PCIe Gen 5 x16 (128 GB/s bi-directional)
+      high_speed_interconnect: "NDR InfiniBand (400 Gb/s) / Ethernet (400 Gb/s) via external NIC"
+      nvlink_fabric: "900 GB/s per GPU via NVSwitch 3.0 in HGX H100 8-GPU server"
+      multi_node_clustering: "Native support via InfiniBand / Ethernet"
+      rdma: "Yes (GPUDirect RDMA)"
+      gpu_to_gpu_direct: "Yes (GPUDirect RDMA + NVLink within node)"
+      sharp: true
+
+    software_and_ecosystem:
+      cuda_toolkit: "11.8+"
+      minimum_driver: "520.61.05+"
+      cublas: "cuBLAS 11.x+ with FP8"
+      cudnn: "8.6+ (FP8 support)"
+      tensorrt: "8.6+ (FP8 support)"
+      nccl: "2.16+ (NVLink 4.0 optimized)"
+      pytorch: "2.0+"
+      tensorflow: "2.12+"
