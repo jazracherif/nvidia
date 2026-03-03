@@ -22,7 +22,8 @@ gpus:
       gpu_count: 1
       cpu: "1x Grace CPU (20-core Arm Neoverse V2)"
       streaming_multiprocessors: 48
-      cuda_cores: ~10240
+      cuda_cores_fp32_per_sm: 128
+      cuda_cores_fp32_per_gpu: 6144  # 128 × 48 SMs
       max_clock_speed: 3003 MHz
       form_factor: Desktop / workstation APU
 
@@ -170,7 +171,9 @@ gpus:
       gpu_count: 72
       cpu: "36x Grace CPUs (72-core Arm Neoverse V2 each = 2592 total cores)"
       streaming_multiprocessors: "~10368 (144 per GPU × 72)"
-      cuda_cores: "~2654208 (36864 per GPU × 72)"
+      cuda_cores_fp32_per_sm: 128
+      cuda_cores_fp32_per_gpu: 18432  # 128 × 144 SMs
+      cuda_cores_total: 1327104  # 18432 × 72 GPUs
       max_clock_speed: ~2800 MHz
       form_factor: Liquid-cooled rack (9 chassis)
 
@@ -316,7 +319,8 @@ gpus:
       gpu_count: 1
       cpu: "Host CPU (user-supplied)"
       streaming_multiprocessors: 48
-      cuda_cores: ~10240
+      cuda_cores_fp32_per_sm: 128
+      cuda_cores_fp32_per_gpu: 6144  # 128 × 48 SMs
       max_clock_speed: 2640 MHz
       form_factor: Discrete PCIe card (dual-slot)
 
@@ -452,7 +456,8 @@ gpus:
       compute_capability: 7.5
       gpu_count: 1
       streaming_multiprocessors: 40
-      cuda_cores: 2560
+      cuda_cores_fp32_per_sm: 64
+      cuda_cores_fp32_per_gpu: 2560  # 64 × 40 SMs
       max_clock_speed: 1590 MHz
       form_factor: Single-slot, low-profile
 
@@ -522,7 +527,6 @@ gpus:
       fp4: Not supported
       int8: 130 TOPS
       tensor_core_generation: "2nd Gen (Turing)"
-      cuda_cores: 2560
 
     power_and_thermal:
       tdp: 70 W
@@ -579,7 +583,8 @@ gpus:
       gpu_count: 1
       cpu: "Host CPU (user-supplied)"
       streaming_multiprocessors: "132 (SXM5) / 114 (PCIe)"
-      cuda_cores: "16896 (SXM5, 128 per SM × 132) / 14592 (PCIe)"
+      cuda_cores_fp32_per_sm: 128
+      cuda_cores_fp32_per_gpu: "16896 (SXM5, 128 × 132 SMs) / 14592 (PCIe, 128 × 114 SMs)"
       max_clock_speed: "~1830 MHz boost (SXM5)"
       form_factor: "SXM5 board (server) / PCIe dual-slot air-cooled card"
 
