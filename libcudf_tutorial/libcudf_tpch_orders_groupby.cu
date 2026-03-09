@@ -23,12 +23,17 @@
 
 #include <cuda_runtime.h>
 #include <rmm/cuda_stream_view.hpp>
+#include <rmm/mr/per_device_resource.hpp>
+#include <rmm/mr/logging_resource_adaptor.hpp>
 
+#include <typeinfo>
 #include <iostream>
 #include <memory>
 #include <stdexcept>
 #include <string>
 #include <vector>
+
+#include "rmm_backtrace_resource_adaptor.hpp"
 
 // ---------------------------------------------------------------------------
 // Convenience: throw on a bad arrow::Status
@@ -297,10 +302,77 @@ static void run_groupby_sum(TableSource const& src)
 }
 
 // ---------------------------------------------------------------------------
+// RAII guard that installs two RMM instrumentation adaptors and restores the
+// original MR on destruction.  Construct before any cudf/RMM call.
+//
+//   Stack when enabled:
+//     [cudf/RMM code]
+//         → backtrace_resource_adaptor  (prints demangled call stack to stdout)
+//         → logging_resource_adaptor    (writes CSV to rmm_alloc_log.csv)
+//         → default pool MR             (actual GPU allocation)
+// ---------------------------------------------------------------------------
+struct RmmInstrumentationGuard {
+    explicit RmmInstrumentationGuard(bool enable,
+                                     std::string const& log_file = "rmm_alloc_log.csv")
+        : enabled_(enable)
+    {
+        if (!enabled_) return;
+
+        original_mr_ = rmm::mr::get_current_device_resource();
+        log_mr_ = std::make_unique<
+            rmm::mr::logging_resource_adaptor<rmm::mr::device_memory_resource>>(
+                original_mr_, log_file);
+        bt_mr_ = std::make_unique<backtrace_resource_adaptor>(log_mr_.get());
+        rmm::mr::set_current_device_resource(bt_mr_.get());
+
+        std::cout << "[RMM instrumentation enabled]  log → " << log_file << "\n\n";
+    }
+
+    ~RmmInstrumentationGuard()
+    {
+        if (!enabled_) return;
+        rmm::mr::set_current_device_resource(original_mr_);
+    }
+
+    // Non-copyable, non-movable — the adaptors hold raw pointers to each other.
+    RmmInstrumentationGuard(RmmInstrumentationGuard const&)            = delete;
+    RmmInstrumentationGuard& operator=(RmmInstrumentationGuard const&) = delete;
+
+private:
+    bool enabled_{false};
+    rmm::mr::device_memory_resource* original_mr_{nullptr};
+    std::unique_ptr<rmm::mr::logging_resource_adaptor<rmm::mr::device_memory_resource>> log_mr_;
+    std::unique_ptr<backtrace_resource_adaptor> bt_mr_;
+};
+
+// ---------------------------------------------------------------------------
 int main(int argc, char** argv)
 {
-    TableSource src = (argc >= 2)
-        ? from_parquet(argv[1])          // key="o_orderstatus", value="o_totalprice" by default
+    // Options:
+    //   --input <path>   Parquet file to read (default: use inline Arrow data)
+    //   --rmm-trace      Print a demangled CPU call stack for every RMM alloc/dealloc
+    //                    Also enabled by setting RMM_INSTRUMENT=1 in the environment.
+    bool        trace    = static_cast<bool>(std::getenv("RMM_INSTRUMENT"));
+    std::string parquet_path;
+
+    for (int i = 1; i < argc; ++i) {
+        std::string arg(argv[i]);
+        if (arg == "--rmm-trace") {
+            trace = true;
+        } else if ((arg == "--input" || arg == "-i") && i + 1 < argc) {
+            parquet_path = argv[++i];
+        } else {
+            std::cerr << "Unknown argument: " << arg << "\n"
+                      << "Usage: " << argv[0]
+                      << " [--input <parquet>] [--rmm-trace]\n";
+            return 1;
+        }
+    }
+
+    RmmInstrumentationGuard rmm_guard{trace};
+
+    TableSource src = !parquet_path.empty()
+        ? from_parquet(parquet_path)
         : from_inline_arrow();
 
     run_groupby_sum(src);

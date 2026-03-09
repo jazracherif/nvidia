@@ -24,6 +24,7 @@ target_link_libraries(libcudf_tpch_orders_groupby
     PRIVATE
         cudf::cudf
         Arrow::arrow_shared
+        ${CMAKE_DL_LIBS}   # dladdr() used by rmm_backtrace_resource_adaptor.hpp
 )
 
 set_target_properties(libcudf_tpch_orders_groupby PROPERTIES
