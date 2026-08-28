@@ -1,0 +1,10 @@
+# Build output: one binary per optimization, produced by `make build`
+build/
+# Legacy single-binary build, superseded by build/
+cuda_optimizations
+
+# Profiling artifacts from `make profile`; regenerate rather than commit
+results/
+
+__pycache__/
+*.pyc

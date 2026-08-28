@@ -82,7 +82,7 @@ __global__ void loop_unrolling_before_kernel(const float* in, float* out, int nu
     int tid = blockIdx.x * blockDim.x + threadIdx.x;
     if (tid * 4 + 3 < numElements) {
         float localArr[4];
-        #pragma nounroll
+        #pragma unroll 1
         for (int i = 0; i < 4; ++i) {
             localArr[i] = in[tid * 4 + i];
             out[tid * 4 + i] = localArr[i] * 2.0f;

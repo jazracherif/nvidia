@@ -1,28 +1,41 @@
 #!/usr/bin/env python3
 """
-Nsight Compute (ncu) driver for CUDA Optimizations benchmark.
+Nsight Compute (ncu) driver for the CUDA optimization benchmarks.
 
-Runs ncu for each optimization's before/after kernel pair and prints a
-side-by-side hardware-metric comparison table.
+Profiles each optimization's before/after kernel pair and writes three
+artifacts per optimization to results/:
+
+    <slug>_<before|after>_<run-id>.ncu-rep   raw ncu report
+    <slug>_check_<run-id>.txt               did each counter move as predicted
+    <slug>_prompt_<run-id>.txt              full context for an AI analysis
+
+<run-id> is one timestamp shared by every optimization in a run.
+
+The check file only records whether expectations were met; it deliberately does
+not speculate about causes.  The prompt file carries the complete source of the
+optimization plus the measured numbers, so the analysis can be done against the
+actual code.
 
 Usage:
-    python run_ncu.py <path/to/cuda_optimizations_binary>
+    # profile all twelve optimizations
+    python run_ncu.py
+
+    # profile a subset, by id and/or name substring
+    python run_ncu.py --only 4,8
+    python run_ncu.py --only "memory coalescing,bank"
 
 Requirements:
-    - ncu >= 2021.1 on PATH  (typically /usr/local/cuda/bin/ncu or
-      /opt/nvidia/nsight-compute/<ver>/ncu)
-    - The binary must already be compiled:
-        nvcc -O3 -arch=native src/cuda_optimizations_examples.cu -o cuda_optimizations
+    - ncu >= 2021.1 on PATH  (typically /usr/local/cuda/bin/ncu)
+    - binaries built:  make build
 
-Notes:
-    - ncu replays each kernel several times to collect hardware counters,
-      so this script takes a few minutes to complete.
-    - Optimization 1 (Occupancy Tuning) uses the same kernel name for both
-      before and after; the script uses --launch-skip to distinguish them.
-      NITER below must match the NITER constant in cuda_optimizations_examples.cu.
+Each binary runs a single variant per invocation ("before" or "after"), so the
+profiled launch is always launch index 1: one warmup launch, then the timed
+loop.  That is why --launch-skip is a constant here.
 """
 
+import argparse
 import csv
+import datetime
 import io
 import os
 import shutil
@@ -30,402 +43,381 @@ import subprocess
 import sys
 from typing import Optional
 
-# Must match NITER in cuda_optimizations_examples.cu
-NITER = 100
+import optimizations
+from optimizations import OPTIMIZATIONS, Metric, Optimization
 
-# Per-optimization metric groups.
-# Each entry: (ncu_perfworks_metric_name, column_label, description)
-# description: what the metric measures and why it reveals this optimization's benefit.
-OPTIMIZATION_METRICS: dict[str, list[tuple[str, str, str]]] = {
-    "1. Occupancy Tuning": [
-        ("gpu__time_duration.sum",
-         "Duration(ns)",
-         "Kernel wall time — primary speedup signal"),
-        ("smsp__warps_active.avg.pct_of_peak_sustained_active",
-         "Occupancy%",
-         "Fraction of max warps active — the direct target: more warps hide memory latency"),
-        ("sm__throughput.avg.pct_of_peak_sustained_elapsed",
-         "SM%",
-         "SM pipeline utilization — rises as higher occupancy keeps execution units busy"),
-        ("dram__throughput.avg.pct_of_peak_sustained_elapsed",
-         "DRAM%",
-         "DRAM bandwidth utilization — memory-bound kernels benefit most from better warp coverage"),
-    ],
+RESULTS_DIR = os.path.join(optimizations.ROOT, "results")
 
-    "2. Loop Unrolling": [
-        ("gpu__time_duration.sum",
-         "Duration(ns)",
-         "Kernel wall time"),
-        ("smsp__inst_executed.sum",
-         "Instructions",
-         "Total GPU instructions — unrolling removes loop-counter increments and branch checks"),
-        ("l1tex__t_bytes_pipe_lsu_mem_local_op_ld.sum",
-         "LocalLd(B)",
-         "Local-memory (DRAM stack) read bytes — non-zero = localArr spilled; 0 = promoted to registers"),
-        ("l1tex__t_bytes_pipe_lsu_mem_local_op_st.sum",
-         "LocalSt(B)",
-         "Local-memory write bytes — should drop to 0 after unroll promotes array to register space"),
-        ("smsp__sass_average_branch_targets_threads_uniform.pct",
-         "BranchUniform%",
-         "Branch uniformity — unrolled loop removes intra-loop branches entirely"),
-    ],
-
-    "3. Control Divergence": [
-        ("gpu__time_duration.sum",
-         "Duration(ns)",
-         "Kernel wall time"),
-        ("smsp__sass_average_branch_targets_threads_uniform.pct",
-         "BranchUniform%",
-         "% of branches where all 32 warp threads agree — 100% after branchless arithmetic rewrite"),
-        ("smsp__inst_executed.sum",
-         "Instructions",
-         "Total instructions — branchless form computes both tasks; divergent serializes warp lanes"),
-        ("sm__throughput.avg.pct_of_peak_sustained_elapsed",
-         "SM%",
-         "SM utilization — no lane serialization means the full 32-thread warp executes every instruction"),
-    ],
-
-    "4. Memory Coalescing": [
-        ("gpu__time_duration.sum",
-         "Duration(ns)",
-         "Kernel wall time"),
-        ("l1tex__t_sectors_pipe_lsu_mem_global_op_ld.sum",
-         "GlobalLdSectors",
-         "128-byte DRAM sectors loaded — uncoalesced warp issues 1 sector/thread; coalesced merges 32 threads into 1"),
-        ("l1tex__t_requests_pipe_lsu_mem_global_op_ld.sum",
-         "GlobalLdReqs",
-         "Global load requests — sectors/requests quantifies the coalescing inefficiency factor"),
-        ("dram__bytes_read.sum",
-         "DRAMRead(B)",
-         "Total DRAM bytes fetched — coalesced access eliminates redundant cache-line transfers"),
-        ("dram__throughput.avg.pct_of_peak_sustained_elapsed",
-         "DRAM%",
-         "DRAM bandwidth utilization — higher means the bus is better used"),
-        ("l1tex__t_sector_hit_rate.pct",
-         "L1hit%",
-         "L1 cache hit rate — coalesced reads improve spatial locality and cache reuse"),
-    ],
-
-    "5. Shared Memory Tiling": [
-        ("gpu__time_duration.sum",
-         "Duration(ns)",
-         "Kernel wall time"),
-        ("dram__bytes_read.sum",
-         "DRAMRead(B)",
-         "DRAM bytes read — tiling reuses each TILE_WIDTH×TILE_WIDTH block from SRAM, reducing DRAM reads ~TILE_WIDTH-fold"),
-        ("dram__throughput.avg.pct_of_peak_sustained_elapsed",
-         "DRAM%",
-         "DRAM bandwidth — lower relative to SM throughput means more work is served from shared memory"),
-        ("l1tex__data_pipe_lsu_wavefronts_mem_shared_op_ld.sum",
-         "ShmemLdWaves",
-         "Shared memory load wavefronts — confirms SRAM is being used to serve multiply-reused tiles"),
-        ("l1tex__t_sector_hit_rate.pct",
-         "L1hit%",
-         "L1 hit rate — tiling improves temporal locality within each phase"),
-        ("sm__throughput.avg.pct_of_peak_sustained_elapsed",
-         "SM%",
-         "SM utilization — compute-bound tiled kernel runs at higher pipeline efficiency"),
-    ],
-
-    "6. Register Tiling": [
-        ("gpu__time_duration.sum",
-         "Duration(ns)",
-         "Kernel wall time"),
-        ("l1tex__data_pipe_lsu_wavefronts_mem_shared_op_ld.sum",
-         "ShmemLdWaves",
-         "Shared memory load wavefronts — 2×2 register tiling halves shared reads per output element"),
-        ("l1tex__data_pipe_lsu_wavefronts_mem_shared_op_st.sum",
-         "ShmemStWaves",
-         "Shared memory store wavefronts — cooperative 2×2 stores reduce store pressure proportionally"),
-        ("l1tex__t_sectors_pipe_lsu_mem_shared_op_ld.sum",
-         "ShmemLdSectors",
-         "Shared load sectors — sectors/wavefront > 1 indicates bank conflicts on wider accesses"),
-        ("smsp__inst_executed.sum",
-         "Instructions",
-         "Total instructions — register accumulation replaces repeated shared memory lookups per k step"),
-        ("sm__throughput.avg.pct_of_peak_sustained_elapsed",
-         "SM%",
-         "SM utilization — register operands have lower latency than shared memory reads"),
-    ],
-
-    "7. Vector Loads": [
-        ("gpu__time_duration.sum",
-         "Duration(ns)",
-         "Kernel wall time"),
-        ("smsp__inst_executed_pipe_lsu.sum",
-         "LSU Instr",
-         "Load/store unit instructions — float4 issues one LDG.E.128 instead of four LDG.E.32 (4× reduction)"),
-        ("smsp__inst_executed.sum",
-         "Total Instr",
-         "Total instructions — reduced LSU pressure frees issue slots for other execution pipes"),
-        ("dram__throughput.avg.pct_of_peak_sustained_elapsed",
-         "DRAM%",
-         "DRAM bandwidth — wider 128-bit transactions better saturate the memory bus"),
-        ("l1tex__t_sectors_pipe_lsu_mem_global_op_ld.sum",
-         "GlobalLdSectors",
-         "Global load sectors — same data volume, 4× fewer transactions"),
-        ("sm__throughput.avg.pct_of_peak_sustained_elapsed",
-         "SM%",
-         "SM utilization — fewer LSU instructions lets other pipes run more freely"),
-    ],
-
-    "8. Bank Conflicts": [
-        ("gpu__time_duration.sum",
-         "Duration(ns)",
-         "Kernel wall time"),
-        ("l1tex__t_sectors_pipe_lsu_mem_shared_op_ld.sum",
-         "ShmemLdSectors",
-         "Shared memory load sectors — each bank conflict replays the access; 32-way conflict = 32× sectors"),
-        ("l1tex__t_requests_pipe_lsu_mem_shared_op_ld.sum",
-         "ShmemLdReqs",
-         "Shared load requests — sectors/requests is the bank conflict multiplier (32→ before, 1 after)"),
-        ("l1tex__data_pipe_lsu_wavefronts_mem_shared_op_ld.sum",
-         "ShmemLdWaves",
-         "Shared load wavefronts — each extra wavefront is a serialized replay caused by a bank conflict"),
-        ("sm__throughput.avg.pct_of_peak_sustained_elapsed",
-         "SM%",
-         "SM utilization — bank conflicts stall the shared memory pipeline and reduce effective throughput"),
-    ],
-
-    "9. Privatization": [
-        ("gpu__time_duration.sum",
-         "Duration(ns)",
-         "Kernel wall time"),
-        ("l1tex__t_bytes_pipe_lsu_mem_global_op_atom.sum",
-         "GlobalAtom(B)",
-         "Global atomic bytes — privatization moves atomics to shared memory, eliminating DRAM-level contention"),
-        ("dram__bytes_read.sum",
-         "DRAMRead(B)",
-         "DRAM reads — global atomic read-modify-write causes high traffic; privatization eliminates most of it"),
-        ("dram__bytes_write.sum",
-         "DRAMWrite(B)",
-         "DRAM writes — one flush per block after privatization vs one write per atomic in the naive version"),
-        ("l1tex__data_pipe_lsu_wavefronts_mem_shared_op_st.sum",
-         "ShmemStWaves",
-         "Shared memory store wavefronts — confirms the optimized version uses fast shared-memory atomics"),
-        ("sm__throughput.avg.pct_of_peak_sustained_elapsed",
-         "SM%",
-         "SM utilization — less stalling on global atomic contention allows higher pipeline fill"),
-    ],
-
-    "10. Warp Primitives": [
-        ("gpu__time_duration.sum",
-         "Duration(ns)",
-         "Kernel wall time"),
-        ("l1tex__data_pipe_lsu_wavefronts_mem_shared_op_ld.sum",
-         "ShmemLdWaves",
-         "Shared memory load wavefronts — warp shuffle needs no shared memory at all; should collapse to ~0"),
-        ("l1tex__data_pipe_lsu_wavefronts_mem_shared_op_st.sum",
-         "ShmemStWaves",
-         "Shared memory store wavefronts — also eliminated: the register-level reduction needs no SRAM staging"),
-        ("smsp__inst_executed.sum",
-         "Instructions",
-         "Total instructions — fewer __syncthreads barriers and no shared-memory load/store sequences"),
-        ("sm__throughput.avg.pct_of_peak_sustained_elapsed",
-         "SM%",
-         "SM utilization — no barrier stalls means warps issue instructions more continuously"),
-        ("smsp__warps_active.avg.pct_of_peak_sustained_active",
-         "Occupancy%",
-         "Achieved occupancy — warp-shuffle version has lower shared-memory footprint, potentially improving occupancy"),
-    ],
-
-    "11. Double Buffering": [
-        ("gpu__time_duration.sum",
-         "Duration(ns)",
-         "Kernel wall time"),
-        ("smsp__inst_executed.sum",
-         "Instructions",
-         "Total instructions — one fewer __syncthreads() per tile iteration removes a global barrier instruction"),
-        ("sm__throughput.avg.pct_of_peak_sustained_elapsed",
-         "SM%",
-         "SM utilization — fewer barrier stalls means warps stall less between load and compute phases"),
-        ("l1tex__data_pipe_lsu_wavefronts_mem_shared_op_ld.sum",
-         "ShmemLdWaves",
-         "Shared memory load wavefronts — same data volume confirms semantic equivalence between both versions"),
-        ("smsp__warps_active.avg.pct_of_peak_sustained_active",
-         "Occupancy%",
-         "Achieved occupancy — single-block kernel; shows whether the SM pipeline is kept busy between tiles"),
-    ],
-
-    "12. Thread Coarsening": [
-        ("gpu__time_duration.sum",
-         "Duration(ns)",
-         "Kernel wall time"),
-        ("smsp__inst_executed.sum",
-         "Instructions",
-         "Total instructions — 4× fewer threads means 4× less index arithmetic and bounds-check overhead"),
-        ("smsp__warps_active.avg.pct_of_peak_sustained_active",
-         "Occupancy%",
-         "Achieved occupancy — intentionally reduced; speedup comes from lower per-thread overhead, not higher occupancy"),
-        ("dram__throughput.avg.pct_of_peak_sustained_elapsed",
-         "DRAM%",
-         "DRAM bandwidth — same data volume; coarser threads may achieve better per-warp memory locality"),
-        ("sm__throughput.avg.pct_of_peak_sustained_elapsed",
-         "SM%",
-         "SM utilization — amortized scheduling overhead means more compute cycles per SM clock"),
-    ],
-}
-
-# (display_label, before_kernel, after_kernel, before_launch_skip, after_launch_skip)
-#
-# launch_skip=1 skips the single warmup launch so ncu profiles the first *timed*
-# launch.  Opt 1 uses the same kernel for both variants; after_skip accounts for
-# 1 warmup + NITER timed before-launches + 1 warmup after-launch = NITER + 2.
-OPTIMIZATIONS = [
-    ("1. Occupancy Tuning",
-     "occupancy_vectorAdd_kernel", "occupancy_vectorAdd_kernel",
-     1, NITER + 2),
-    ("2. Loop Unrolling",
-     "loop_unrolling_before_kernel",    "loop_unrolling_after_kernel",    1, 1),
-    ("3. Control Divergence",
-     "control_divergence_before_kernel", "control_divergence_after_kernel", 1, 1),
-    ("4. Memory Coalescing",
-     "memory_coalescing_before_kernel", "memory_coalescing_after_kernel", 1, 1),
-    ("5. Shared Memory Tiling",
-     "shared_tiling_matmul_before",     "shared_tiling_matmul_after",     1, 1),
-    ("6. Register Tiling",
-     "register_tiling_before_kernel",   "register_tiling_after_kernel",   1, 1),
-    ("7. Vector Loads",
-     "vector_loads_before_kernel",      "vector_loads_after_kernel",      1, 1),
-    ("8. Bank Conflicts",
-     "bank_conflicts_before_kernel",    "bank_conflicts_after_kernel",    1, 1),
-    ("9. Privatization",
-     "privatization_before_kernel",     "privatization_after_kernel",     1, 1),
-    ("10. Warp Primitives",
-     "warp_primitives_before_kernel",   "warp_primitives_after_kernel",   1, 1),
-    ("11. Double Buffering",
-     "double_buffering_before_kernel",  "double_buffering_after_kernel",  1, 1),
-    ("12. Thread Coarsening",
-     "thread_coarsening_before_kernel", "thread_coarsening_after_kernel", 1, 1),
-]
+# timeKernelMs issues exactly one warmup launch before the timed loop.
+LAUNCH_SKIP = 1
 
 
-def run_ncu(binary: str, kernel: str, launch_skip: int,
-            metrics: list[str]) -> Optional[dict]:
-    """Profile one kernel launch with ncu and return {metric_name: float}."""
-    cmd = [
-        "ncu", "--csv", "--quiet",
+def supported_metrics() -> set:
+    """Counter names this device exposes.  Unsupported names are silently
+    dropped by ncu, which would otherwise look like a flat result."""
+    try:
+        out = subprocess.run(["ncu", "--query-metrics"], capture_output=True,
+                             text=True, timeout=120).stdout
+    except (subprocess.SubprocessError, FileNotFoundError):
+        return set()
+    return {line.split()[0] for line in out.splitlines()
+            if line and not line[0].isspace()}
+
+
+def base_counter(name: str) -> str:
+    """'lts__t_sectors_op_read.sum' -> 'lts__t_sectors_op_read'."""
+    return name.split(".", 1)[0]
+
+
+def run_ncu(binary: str, variant: str, kernel: str, metrics: list[str],
+            export_path: str) -> Optional[dict]:
+    """Profile one kernel launch and return {counter: (value, unit)}.
+
+    ncu suppresses its CSV output whenever --export is given, so the report is
+    written first and then read back with --import.
+    """
+    profile = [
+        "ncu",
         "--kernel-name",  kernel,
-        "--launch-skip",  str(launch_skip),
+        "--launch-skip",  str(LAUNCH_SKIP),
         "--launch-count", "1",
         "--metrics",      ",".join(metrics),
-        binary,
+        "--export",       export_path,
+        "--force-overwrite",
+        binary, variant,
     ]
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+        result = subprocess.run(profile, capture_output=True, text=True,
+                                timeout=900)
     except subprocess.TimeoutExpired:
-        print(f"\n  [TIMEOUT] ncu exceeded 5 min for kernel '{kernel}'",
+        print(f"\n  [TIMEOUT] ncu exceeded 15 min on {binary} {variant}",
               file=sys.stderr)
         return None
     except FileNotFoundError:
         print("ERROR: 'ncu' not found on PATH.", file=sys.stderr)
         sys.exit(1)
 
-    if result.returncode != 0:
-        stderr = result.stderr.strip()
-        if stderr:
-            print(f"\n  [ncu stderr] {stderr}", file=sys.stderr)
-
-    # ncu always quotes CSV fields; unquoted lines are binary stdout noise
-    csv_lines = [l for l in result.stdout.splitlines() if l.startswith('"')]
-    if not csv_lines:
+    if result.returncode != 0 and result.stderr.strip():
+        print(f"\n  [ncu stderr] {result.stderr.strip()}", file=sys.stderr)
         return None
 
-    reader = csv.DictReader(io.StringIO("\n".join(csv_lines)))
-    agg: dict = {}
-    cnt: dict = {}
-    for row in reader:
-        name    = row.get("Metric Name", "").strip()
-        val_str = row.get("Metric Value", "").strip().replace(",", "")
-        if not name:
+    dump = subprocess.run(["ncu", "--import", export_path, "--csv",
+                           "--page", "raw"],
+                          capture_output=True, text=True, timeout=300)
+    rows = list(csv.reader(io.StringIO(dump.stdout)))
+    if len(rows) < 3:
+        return None
+
+    header, units, data = rows[0], rows[1], rows[2:]
+    measured: dict[str, tuple[float, str]] = {}
+    for name in metrics:
+        if name not in header:
             continue
-        try:
-            val = float(val_str)
-            agg[name] = agg.get(name, 0.0) + val
-            cnt[name] = cnt.get(name, 0) + 1
-        except ValueError:
-            pass
-    return {k: v / cnt[k] for k, v in agg.items()}
+        col = header.index(name)
+        values = []
+        for row in data:
+            try:
+                # ncu writes thousands separators, e.g. "32,768".
+                values.append(float(row[col].replace(",", "")))
+            except (ValueError, IndexError):
+                pass
+        if values:
+            measured[name] = (sum(values) / len(values), units[col])
+    return measured
 
 
-def fmt_val(d: Optional[dict], metric: str) -> str:
-    """Return a formatted metric value from the dict, or 'n/a'."""
-    if d is None:
+def fmt_val(measured: Optional[dict], counter: str) -> str:
+    """Format one counter value, or 'n/a' if it was not collected."""
+    if not measured or counter not in measured:
         return "n/a"
-    for key, val in d.items():
-        if key == metric or key.endswith(metric):
-            if val >= 1e9:
-                return f"{val:.3e}"
-            elif val >= 1e4:
-                return f"{val:.0f}"
-            else:
-                return f"{val:.2f}"
-    return "n/a"
+    value, _ = measured[counter]
+    if abs(value) >= 1e9:
+        return f"{value:.3e}"
+    if abs(value) >= 1e4:
+        return f"{value:.0f}"
+    return f"{value:.2f}"
 
 
-def fmt_change(before_str: str, after_str: str) -> str:
-    """Return signed percentage change string, or 'n/a'."""
+def unit_of(measured: Optional[dict], counter: str) -> str:
+    if not measured or counter not in measured:
+        return ""
+    return measured[counter][1]
+
+
+def pct_change(before: str, after: str) -> Optional[float]:
     try:
-        b, a = float(before_str), float(after_str)
-        if b == 0:
-            return "n/a"
-        pct = (a - b) / abs(b) * 100
-        return f"{"+" if pct >= 0 else ""}{pct:.1f}%"
+        b, a = float(before), float(after)
     except (ValueError, TypeError):
-        return "n/a"
+        return None
+    return None if b == 0 else (a - b) / abs(b) * 100
 
 
-def print_opt_section(label: str, bk: str, ak: str,
-                      metrics_info: list[tuple],
-                      mb: Optional[dict], ma: Optional[dict]) -> None:
-    """Print a detailed before/after metrics table for one optimization."""
-    W = 84
-    CL, CB, CA, CC = 20, 14, 14, 10
-    print("=" * W)
-    print(f" {label}")
-    print(f"   before: {bk}")
-    print(f"   after:  {ak}")
-    print("-" * W)
-    print(f"{'Metric':<{CL}}{'Before':>{CB}}{'After':>{CA}}{'Change':>{CC}}")
-    print("-" * W)
-    for metric, col_label, description in metrics_info:
-        bv = fmt_val(mb, metric)
-        av = fmt_val(ma, metric)
-        ch = fmt_change(bv, av)
-        print(f"{col_label:<{CL}}{bv:>{CB}}{av:>{CA}}{ch:>{CC}}")
-        print(f"  \u2192 {description}")
-    print()
+def fmt_change(pct: Optional[float]) -> str:
+    return "n/a" if pct is None else f"{pct:+.1f}%"
+
+
+def verdict(pct: Optional[float], expected: str) -> str:
+    """Compare observed direction against the prediction.  No interpretation."""
+    if pct is None:
+        return "NO DATA"
+    moved = "flat" if abs(pct) < 1.0 else ("up" if pct > 0 else "down")
+    if expected == "any":
+        return f"INFO ({moved})"
+    if moved == "flat":
+        return "NOT MET (flat)"
+    return "MET" if moved == expected else f"NOT MET ({moved})"
+
+
+def collect_rows(opt: Optimization,
+                 mb: Optional[dict], ma: Optional[dict]) -> list[dict]:
+    """One row per metric: values, change, expectation, verdict."""
+    rows = []
+    for m in opt.metrics:
+        before = fmt_val(mb, m.name)
+        after  = fmt_val(ma, m.name)
+        pct    = pct_change(before, after)
+        unit   = unit_of(mb, m.name) or unit_of(ma, m.name)
+        rows.append({
+            "counter": m.name, "label": m.label, "why": m.why, "unit": unit,
+            "before": before, "after": after, "pct": pct,
+            "change": fmt_change(pct), "expected": m.expect,
+            "verdict": verdict(pct, m.expect),
+        })
+    return rows
+
+
+def metric_table(rows: list[dict], width: int) -> list[str]:
+    out = [
+        f"{'Metric':<16}{'Unit':<8}{'Before':>14}{'After':>14}{'Change':>10}"
+        f"  {'Expected':<9}Result",
+        "-" * width,
+    ]
+    for r in rows:
+        out.append(f"{r['label']:<16}{r['unit']:<8}{r['before']:>14}"
+                   f"{r['after']:>14}{r['change']:>10}  "
+                   f"{r['expected']:<9}{r['verdict']}")
+    return out
+
+
+def build_check(opt: Optimization, run_id: str,
+                rows: list[dict], reports: dict[str, str]) -> str:
+    """Record which expectations the counters met.  Interpretation is the
+    prompt's job, so nothing here speculates about causes."""
+    W = 88
+    out = [
+        "=" * W,
+        f"{opt.display}   (run {run_id})",
+        f"  source  : {os.path.relpath(opt.source_path, optimizations.ROOT)}",
+        f"  before  : {opt.before_kernel}",
+        f"  after   : {opt.after_kernel}",
+        f"  reports : {os.path.basename(reports['before'])}",
+        f"            {os.path.basename(reports['after'])}",
+        "=" * W,
+        "",
+    ]
+    out += metric_table(rows, W)
+
+    judged  = [r for r in rows if r["expected"] != "any" and r["pct"] is not None]
+    met     = [r for r in judged if r["verdict"] == "MET"]
+    not_met = [r for r in judged if r["verdict"].startswith("NOT MET")]
+    no_data = [r for r in rows if r["pct"] is None]
+
+    duration = next((r for r in rows if r["counter"] == "gpu__time_duration.sum"),
+                    None)
+
+    out += ["-" * W, "", "RESULT", "-" * W]
+    if duration and duration["pct"] is not None:
+        try:
+            speedup = float(duration["before"]) / float(duration["after"])
+            unit = duration["unit"] or ""
+            out.append(f"Kernel time : {duration['before']} {unit} -> "
+                       f"{duration['after']} {unit}  ({duration['change']}, "
+                       f"{speedup:.2f}x)")
+        except (ValueError, ZeroDivisionError):
+            out.append(f"Kernel time : {duration['change']}")
+    else:
+        out.append("Kernel time : no data")
+
+    out.append(f"Expectations: {len(met)}/{len(judged)} met")
+    if met:
+        out.append("  met      : " + ", ".join(f"{r['label']} {r['change']}"
+                                               for r in met))
+    if not_met:
+        out.append("  not met  : " + ", ".join(
+            f"{r['label']} {r['change']} (expected {r['expected']})"
+            for r in not_met))
+    if no_data:
+        out.append("  no data  : " + ", ".join(r["label"] for r in no_data))
+    out.append("")
+    out.append(f"See {opt.slug}_prompt_{run_id}.txt for an analysis prompt "
+               f"containing the same data plus the kernel source.")
+    out.append("")
+    return "\n".join(out)
+
+
+def build_prompt(opt: Optimization, run_id: str, rows: list[dict]) -> str:
+    """Everything needed to analyze the result: intent, source, and numbers."""
+    out = [
+        "You are a CUDA performance engineer. Analyze the Nsight Compute "
+        "counters below against the kernel source that produced them.",
+        "",
+        "=" * 78,
+        "1. WHAT THE OPTIMIZATION CLAIMS",
+        "=" * 78,
+        opt.summary,
+        "",
+        "=" * 78,
+        "2. COMPLETE SOURCE UNDER TEST",
+        "=" * 78,
+        f"File: {os.path.relpath(opt.source_path, optimizations.ROOT)}",
+        "",
+        "```cuda",
+        opt.source.rstrip(),
+        "```",
+        "",
+        "=" * 78,
+        "3. MEASUREMENT SETUP",
+        "=" * 78,
+        f"Run id: {run_id}",
+        "Each variant runs in its own process, invoked as "
+        f"`{opt.slug} before` and `{opt.slug} after`.",
+        "Each process performs one warmup launch followed by a timed loop; ncu "
+        f"profiles launch index {LAUNCH_SKIP} (the first timed launch) with "
+        "--launch-count 1.",
+        f"Profiled kernels: {opt.before_kernel} (before), "
+        f"{opt.after_kernel} (after).",
+        "Both variants are verified to produce equivalent output before timing.",
+        "",
+        "=" * 78,
+        "4. MEASURED COUNTERS",
+        "=" * 78,
+    ]
+    out += metric_table(rows, 78)
+    out += ["", "Per-counter detail:", ""]
+    for r in rows:
+        out.append(f"- {r['label']} ({r['counter']}, unit: {r['unit'] or 'n/a'})")
+        out.append(f"    before = {r['before']}, after = {r['after']}, "
+                   f"change = {r['change']}")
+        out.append(f"    predicted direction = {r['expected']}, "
+                   f"observed = {r['verdict']}")
+        out.append(f"    why this counter matters: {r['why']}")
+
+    out += [
+        "",
+        "=" * 78,
+        "5. YOUR TASK",
+        "=" * 78,
+        "1. State whether kernel time improved and by how much, using the "
+        "actual numbers.",
+        "2. For each counter, explain the hardware mechanism that produced the "
+        "observed change, referring to specific lines of the source above.",
+        "3. For any counter marked NOT MET, determine the most likely cause. "
+        "Consider: the compiler already performed the transformation; a "
+        "different bottleneck dominates at this problem size; the working set "
+        "fits in cache so the effect is hidden; the launch configuration "
+        "changed something else at the same time; or the counter does not "
+        "measure what the prediction assumed.",
+        "4. State whether the counters, taken together, corroborate the claimed "
+        "benefit. Say so plainly if they do not.",
+        "5. Propose one concrete next experiment: a specific change to the "
+        "source, problem size, or launch configuration, and what counter you "
+        "would expect it to move.",
+        "",
+        "Reference concrete numbers throughout. Do not restate the counter "
+        "descriptions back to me. Keep the answer under 400 words.",
+        "",
+    ]
+    return "\n".join(out)
 
 
 def main() -> None:
-    binary = sys.argv[1] if len(sys.argv) > 1 else "./cuda_optimizations"
+    parser = argparse.ArgumentParser(
+        description="Profile before/after CUDA kernel pairs with Nsight Compute.",
+        epilog="examples:\n"
+               "  %(prog)s\n"
+               "  %(prog)s --only 4,8\n"
+               "  %(prog)s --only \"memory coalescing,bank\"",
+        formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("--only", metavar="LIST",
+                        help="comma-separated optimization ids or name "
+                             "substrings (default: all twelve)")
+    args = parser.parse_args()
+
+    selected = optimizations.select(args.only)
 
     if not shutil.which("ncu"):
         print("ERROR: 'ncu' not found on PATH.\n"
               "  Try: export PATH=/usr/local/cuda/bin:$PATH", file=sys.stderr)
         sys.exit(1)
 
-    if not os.path.isfile(binary):
-        print(f"ERROR: binary not found: {binary}", file=sys.stderr)
+    missing = [o for o in selected if not os.path.isfile(o.binary)]
+    if missing:
+        print("ERROR: binaries not built: "
+              + ", ".join(o.slug for o in missing)
+              + "\n  Run: make build", file=sys.stderr)
         sys.exit(1)
 
-    print(f"Binary : {binary}")
-    print(f"NITER  : {NITER}  (must match .cu source)\n")
+    # ncu drops unknown counters without complaining, which is indistinguishable
+    # from a flat result, so resolve them before spending minutes profiling.
+    # Required counters that are missing are an error; optional ones ("?counter"
+    # in the .cu header) are architecture-specific and simply skipped.
+    available = supported_metrics()
+    skipped: set = set()
+    if available:
+        def missing(m) -> bool:
+            return base_counter(m.name) not in available
 
-    for label, bk, ak, bskip, askip in OPTIMIZATIONS:
-        metrics_info = OPTIMIZATION_METRICS.get(label, [])
-        if not metrics_info:
-            print(f"WARNING: no metrics defined for '{label}'", file=sys.stderr)
-            continue
+        unknown = sorted({
+            m.name for o in selected for m in o.metrics
+            if missing(m) and not m.optional
+        })
+        if unknown:
+            print("ERROR: counters not supported by this GPU:\n  "
+                  + "\n  ".join(unknown)
+                  + "\n\nFix the @metric lines in src/*.cu. "
+                    "List valid names with: ncu --query-metrics",
+                  file=sys.stderr)
+            sys.exit(1)
 
-        metric_names = [m[0] for m in metrics_info]
+        skipped = {m.name for o in selected for m in o.metrics
+                   if missing(m) and m.optional}
+        if skipped:
+            print("Note: optional counters unavailable on this GPU, skipping:\n  "
+                  + "\n  ".join(sorted(skipped)) + "\n")
 
-        print(f"  Profiling {label}...", end=" ", flush=True)
-        mb = run_ncu(binary, bk, bskip, metric_names)
-        ma = run_ncu(binary, ak, askip, metric_names)
-        print("done")
+    run_id = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+    os.makedirs(RESULTS_DIR, exist_ok=True)
 
-        print_opt_section(label, bk, ak, metrics_info, mb, ma)
+    print(f"Run id : {run_id}")
+    print(f"Results: {RESULTS_DIR}")
+    print(f"Running: {len(selected)}/{len(OPTIMIZATIONS)} optimizations\n")
+
+    for opt in selected:
+        counters = [m.name for m in opt.metrics if m.name not in skipped]
+        reports = {
+            v: os.path.join(RESULTS_DIR, f"{opt.slug}_{v}_{run_id}.ncu-rep")
+            for v in ("before", "after")
+        }
+
+        print(f"  {opt.display} ...", end=" ", flush=True)
+        mb = run_ncu(opt.binary, "before", opt.before_kernel, counters,
+                     reports["before"])
+        ma = run_ncu(opt.binary, "after", opt.after_kernel, counters,
+                     reports["after"])
+        rows = collect_rows(opt, mb, ma)
+
+        judged = [r for r in rows if r["expected"] != "any" and r["pct"] is not None]
+        met = [r for r in judged if r["verdict"] == "MET"]
+        print(f"done  ({len(met)}/{len(judged)} expectations met)")
+
+        check_path  = os.path.join(RESULTS_DIR, f"{opt.slug}_check_{run_id}.txt")
+        prompt_path = os.path.join(RESULTS_DIR, f"{opt.slug}_prompt_{run_id}.txt")
+        with open(check_path, "w", encoding="utf-8") as f:
+            f.write(build_check(opt, run_id, rows, reports))
+        with open(prompt_path, "w", encoding="utf-8") as f:
+            f.write(build_prompt(opt, run_id, rows))
+
+    print(f"\nArtifacts for run {run_id} are in {RESULTS_DIR}")
 
 
 if __name__ == "__main__":
