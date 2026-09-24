@@ -137,6 +137,16 @@ inline std::vector<float> patternFloats(size_t n) {
     return v;
 }
 
+
+inline std::vector<float> patternAllOnes(size_t n) {
+    std::vector<float> v(n);
+    for (size_t i = 0; i < n; ++i) {
+        v[i] = 1.0f;
+    }
+    return v;
+}
+
+
 // Skewed towards bin 0 so the histogram kernels see realistic atomic contention.
 inline std::vector<int> patternBins(size_t n, int bins) {
     std::vector<int> v(n);

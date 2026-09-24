@@ -398,8 +398,11 @@ def main() -> None:
             v: os.path.join(RESULTS_DIR, f"{opt.slug}_{v}_{run_id}.ncu-rep")
             for v in ("before", "after")
         }
-
+        print("\n" + "*" * 120)
         print(f"  {opt.display} ...", end=" ", flush=True)
+        print("\n" + "*" * 120)
+
+        # Run Nsight Compute for the "before" and "after" kernels
         mb = run_ncu(opt.binary, "before", opt.before_kernel, counters,
                      reports["before"])
         ma = run_ncu(opt.binary, "after", opt.after_kernel, counters,
@@ -412,8 +415,11 @@ def main() -> None:
 
         check_path  = os.path.join(RESULTS_DIR, f"{opt.slug}_check_{run_id}.txt")
         prompt_path = os.path.join(RESULTS_DIR, f"{opt.slug}_prompt_{run_id}.txt")
+        check_text = build_check(opt, run_id, rows, reports)
         with open(check_path, "w", encoding="utf-8") as f:
-            f.write(build_check(opt, run_id, rows, reports))
+            f.write(check_text)
+        print(check_text)
+
         with open(prompt_path, "w", encoding="utf-8") as f:
             f.write(build_prompt(opt, run_id, rows))
 
