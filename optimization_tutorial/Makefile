@@ -4,6 +4,7 @@ ARCH    ?= native
 # -lineinfo enables ncu source correlation at no runtime cost.
 NVFLAGS ?= -O3 -lineinfo -arch=$(ARCH) -I.
 PYTHON  ?= python3
+PYTEST  := $(PYTHON) -m pytest
 
 SRC_DIR   := src
 BUILD_DIR := build
@@ -13,7 +14,7 @@ DOCS_DIR  := docs
 SRCS := $(sort $(wildcard $(SRC_DIR)/*.cu))
 BINS := $(patsubst $(SRC_DIR)/%.cu,$(BUILD_DIR)/%,$(SRCS))
 
-.PHONY: all build run profile metrics-list clean
+.PHONY: all build run profile metrics-list tests clean
 
 all: build
 
@@ -40,6 +41,9 @@ metrics-list:
 	@mkdir -p $(DOCS_DIR)
 	ncu --query-metrics > $(DOCS_DIR)/ncu-metrics-device.txt
 	@echo "wrote $(DOCS_DIR)/ncu-metrics-device.txt ($$(wc -l < $(DOCS_DIR)/ncu-metrics-device.txt) lines)"
+
+tests:
+	$(PYTEST) tests/ -v
 
 clean:
 	rm -rf $(BUILD_DIR) $(RESULTS)

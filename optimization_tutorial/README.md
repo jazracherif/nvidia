@@ -42,7 +42,24 @@ The tutorials cover the following CUDA optimization techniques:
 - NVIDIA GPU with CUDA support
 - CUDA Toolkit installed
 - NVIDIA Nsight Compute (NCU) profiler
-- Python 3.x
+- Python 3.10+
+
+### Python Environment
+
+```bash
+# Create a virtual environment (or use your preferred setup)
+python -m venv .venv
+source .venv/bin/activate
+
+# Install required packages
+pip install -r requirements.txt
+```
+
+### Running Tests
+
+```bash
+pytest tests/ -v
+```
 
 ### Building the Examples
 

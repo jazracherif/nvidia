@@ -39,7 +39,7 @@ BUILD_DIR = os.path.join(ROOT, "build")
 EXPECT_VALUES = ("up", "down", "any")
 
 _TAG_RE    = re.compile(r"^@(\w+)\s*(.*)$")
-_HEADER_RE = re.compile(r"/\*\*(.*?)\*/", re.DOTALL)
+_HEADER_RE = re.compile(r"^\s*/\*\*(.*?)\*/", re.MULTILINE | re.DOTALL)
 
 
 class CatalogError(Exception):
@@ -159,6 +159,9 @@ def parse_source(path: str) -> Optimization:
     header = _HEADER_RE.search(source)
     if not header:
         raise CatalogError(f"{path}: no /** ... */ header comment found")
+    # TODO: the regex may match /** ... */ that appears inside a line comment (//),
+    # producing a false positive header. Fix by stripping // comments before scanning,
+    # or by using a proper block-comment parser.
 
     tags, metric_specs = _split_tags(header.group(1), path)
 
