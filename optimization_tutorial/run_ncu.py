@@ -70,22 +70,58 @@ def base_counter(name: str) -> str:
 
 
 def run_ncu(binary: str, variant: str, kernel: str, metrics: list[str],
-            export_path: str) -> Optional[dict]:
+            export_path: str, all_metrics_flag: bool = False) -> Optional[dict]:
     """Profile one kernel launch and return {counter: (value, unit)}.
 
     ncu suppresses its CSV output whenever --export is given, so the report is
     written first and then read back with --import.
+
+    Args:
+        binary: path to compiled CUDA executable
+        variant: "before" or "after" argument name
+        kernel: kernel name to profile within the binary
+        metrics: counters to collect from the .cu header
+        export_path: output path for the .ncu-rep report
+        all_metrics_flag: if True, add --set full to capture all available metrics
+                          into the report (without listing them on command line)
     """
-    profile = [
-        "ncu",
-        "--kernel-name",  kernel,
-        "--launch-skip",  str(LAUNCH_SKIP),
-        "--launch-count", "1",
-        "--metrics",      ",".join(metrics),
-        "--export",       export_path,
-        "--force-overwrite",
-        binary, variant,
-    ]
+    if metrics:
+        profile = [
+            "ncu",
+            "--kernel-name",  kernel,
+            "--launch-skip",  str(LAUNCH_SKIP),
+            "--launch-count", "1",
+            "--metrics",      ",".join(metrics),
+            "--export",       export_path,
+            "--force-overwrite",
+            binary, variant,
+        ]
+        if all_metrics_flag:
+            # --set full collects ALL available device counters into the
+            # .ncu-rep file without listing them on the command line (which
+            # would exceed the ~128KB kernel argument limit).
+            profile.insert(5, "--set")
+            profile.insert(6, "full")
+    else:
+        # No explicit metrics — ncu auto-collects all available device
+        # counters and writes them into the .ncu-rep report.  Since we don't
+        # know which exact counter names will appear in the CSV header (they
+        # differ from perfworks-style names used by --metrics), we return all
+        # rows and let the caller match by base name or label.
+        profile = [
+            "ncu",
+            "--kernel-name",  kernel,
+            "--launch-skip",  str(LAUNCH_SKIP),
+            "--launch-count", "1",
+            "--export",       export_path,
+            "--force-overwrite",
+            binary, variant,
+        ]
+    
+    # Debug: print the command before executing
+    cmd_str = " ".join(profile)
+    print(f"\n  [{variant:>6}] ncu > {cmd_str}")
+
     try:
         result = subprocess.run(profile, capture_output=True, text=True,
                                 timeout=900)
@@ -110,6 +146,22 @@ def run_ncu(binary: str, variant: str, kernel: str, metrics: list[str],
 
     header, units, data = rows[0], rows[1], rows[2:]
     measured: dict[str, tuple[float, str]] = {}
+
+    # If metrics was empty (--all-metrics), return ALL counters from the report.
+    if not metrics:
+        for col in range(3, len(header)):
+            name = header[col]
+            values = []
+            for row in data:
+                try:
+                    values.append(float(row[col].replace(",", "")))
+                except (ValueError, IndexError):
+                    pass
+            if values:
+                measured[name] = (sum(values) / len(values), units[col])
+        return measured
+
+    # Otherwise only read the counters the user asked for.
     for name in metrics:
         if name not in header:
             continue
@@ -341,6 +393,12 @@ def main() -> None:
     parser.add_argument("--only", metavar="LIST",
                         help="comma-separated optimization ids or name "
                              "substrings (default: all twelve)")
+    parser.add_argument("--all-metrics", action="store_true", default=False,
+                        dest="all_metrics",
+                        help="Omit --metrics entirely so ncu auto-collects ALL "
+                             "available device counters in the .ncu-rep report. "
+                             "The check/verdict logic still only evaluates the "
+                             "counters specified in each .cu header.")
     args = parser.parse_args()
 
     selected = optimizations.select(args.only)
@@ -386,35 +444,51 @@ def main() -> None:
                   + "\n  ".join(sorted(skipped)) + "\n")
 
     run_id = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
-    os.makedirs(RESULTS_DIR, exist_ok=True)
+
+    # Create a run folder inside results, then subfolder per optimization
+    run_dir = os.path.join(RESULTS_DIR, run_id)
+    os.makedirs(run_dir, exist_ok=True)
 
     print(f"Run id : {run_id}")
-    print(f"Results: {RESULTS_DIR}")
+    print(f"Results: {run_dir}")
     print(f"Running: {len(selected)}/{len(OPTIMIZATIONS)} optimizations\n")
 
     for opt in selected:
-        counters = [m.name for m in opt.metrics if m.name not in skipped]
+        # Collect counters from the .cu header. These are passed to ncu only
+        # so CSV reading works reliably — we still need them in the report.
+        base_count = [m.name for m in opt.metrics if m.name not in skipped]
+        counters = base_count
+
+        # Create per-optimization subfolder inside the run folder
+        opt_dir = os.path.join(run_dir, opt.slug)
+        os.makedirs(opt_dir, exist_ok=True)
+
         reports = {
-            v: os.path.join(RESULTS_DIR, f"{opt.slug}_{v}_{run_id}.ncu-rep")
-            for v in ("before", "after")
+            "before": os.path.join(opt_dir, "before.ncu-rep"),
+            "after":  os.path.join(opt_dir, "after.ncu-rep"),
         }
         print("\n" + "*" * 120)
-        print(f"  {opt.display} ...", end=" ", flush=True)
+        if args.all_metrics:
+            label = "all available metrics (no --metrics flag)"
+        else:
+            label = f"{len(counters)} counters from .cu header"
+        print(f"  {opt.display} [{label}] ...", end=" ", flush=True)
         print("\n" + "*" * 120)
 
         # Run Nsight Compute for the "before" and "after" kernels
         mb = run_ncu(opt.binary, "before", opt.before_kernel, counters,
-                     reports["before"])
+                     reports["before"], all_metrics_flag=args.all_metrics)
         ma = run_ncu(opt.binary, "after", opt.after_kernel, counters,
-                     reports["after"])
+                     reports["after"], all_metrics_flag=args.all_metrics)
         rows = collect_rows(opt, mb, ma)
 
         judged = [r for r in rows if r["expected"] != "any" and r["pct"] is not None]
         met = [r for r in judged if r["verdict"] == "MET"]
         print(f"done  ({len(met)}/{len(judged)} expectations met)")
 
-        check_path  = os.path.join(RESULTS_DIR, f"{opt.slug}_check_{run_id}.txt")
-        prompt_path = os.path.join(RESULTS_DIR, f"{opt.slug}_prompt_{run_id}.txt")
+        # Write check and prompt into the per-optimization subfolder
+        check_path  = os.path.join(opt_dir, "check.txt")
+        prompt_path = os.path.join(opt_dir, "prompt.txt")
         check_text = build_check(opt, run_id, rows, reports)
         with open(check_path, "w", encoding="utf-8") as f:
             f.write(check_text)

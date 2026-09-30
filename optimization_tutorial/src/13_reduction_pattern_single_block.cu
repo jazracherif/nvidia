@@ -4,7 +4,7 @@
  * @benefit   Improves warp efficiency by aligning thread work patterns with memory access patterns.
  * @strategy  Compare two reduction approaches: one where threads process elements at stride,
  *            and another where threads process consecutive elements in a hierarchical reduction.
- * @algorithm Hierarchical reduction of 1M floats using different thread assignment patterns.
+ * @algorithm Hierarchical reduction of 2048 floats using different thread assignment patterns.
  * @before    Threads are assigned to every other element, with stride doubling each iteration.
  *            Only threads at the current stride value participate, leading to poor warp efficiency.
  * @after     Threads are aligned to consecutive elements, reducing upper half in each step
